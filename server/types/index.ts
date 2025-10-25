@@ -18,6 +18,7 @@ export interface Video {
   priceUsdc: number;
   thumbnailUrl: string;
   videoUrl: string;
+  videoPath?: string; // Arweave transaction ID
   duration: number;
   views: number;
   earnings: number;

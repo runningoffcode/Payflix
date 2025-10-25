@@ -1,13 +1,16 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import config from './config';
-import { db } from './database';
+import { db, initializeDatabase } from './database/db-factory';
 
 // Import routes
 import videosRoutes from './routes/videos.routes';
 import usersRoutes from './routes/users.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import authRoutes from './routes/auth.routes';
+import uploadRoutes from './routes/video-upload.routes';
 
 // Load environment variables
 dotenv.config();
@@ -15,9 +18,13 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Request logging
 app.use((req, res, next) => {
@@ -38,9 +45,11 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/videos', videosRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -63,36 +72,52 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // Start server
 async function startServer() {
   try {
-    // Initialize sample data
-    await db.initializeSampleData();
+    // Initialize database
+    await initializeDatabase();
+
+    // Initialize sample data if using in-memory database
+    if (!config.database.usePostgres && db.initializeSampleData) {
+      await db.initializeSampleData();
+    }
 
     app.listen(config.port, () => {
       console.log('\n╔════════════════════════════════════════════════════════════╗');
       console.log('║                                                            ║');
-      console.log('║                  🎬 FLIX VIDEO PLATFORM                    ║');
+      console.log('║                  🎬 FLIX VIDEO PLATFORM v2.0               ║');
       console.log('║              X402 Payment Protocol on Solana               ║');
       console.log('║                                                            ║');
       console.log('╚════════════════════════════════════════════════════════════╝\n');
       console.log(`🚀 Server running on port ${config.port}`);
       console.log(`🌐 API: http://localhost:${config.port}/api`);
       console.log(`💳 Protocol: X402 with USDC on Solana`);
-      console.log(`🤖 AI Agent: Enabled for payment verification`);
+      console.log(`📊 Database: ${config.database.usePostgres ? 'PostgreSQL' : 'In-Memory (Dev)'}`);
+      console.log(`🔐 Auth: JWT with ${config.jwt.expiresIn} expiry`);
+      console.log(`🤖 AI Agent: ${config.aiAgent.enabled ? 'Enabled' : 'Disabled'}`);
       console.log(`💰 Revenue Split: ${config.fees.creatorPercentage}% Creator / ${config.fees.platformPercentage}% Platform`);
       console.log('\n📋 Features:');
       console.log('   ✓ Instant creator monetization');
       console.log('   ✓ No ads for users');
-      console.log('   ✓ Instant payments via x402');
+      console.log('   ✓ Real Solana wallet integration (Phantom/Solflare)');
+      console.log('   ✓ Arweave decentralized video storage');
+      console.log('   ✓ JWT authentication');
+      console.log('   ✓ PostgreSQL support');
       console.log('   ✓ AI-powered payment verification');
       console.log('   ✓ Automatic revenue splitting');
       console.log('\n🔗 Endpoints:');
-      console.log('   - GET  /health                          (Health check)');
+      console.log('   AUTH:');
+      console.log('   - POST /api/auth/login                  (Login with wallet)');
+      console.log('   - GET  /api/auth/me                     (Get current user)');
+      console.log('   VIDEOS:');
       console.log('   - GET  /api/videos                      (List videos)');
-      console.log('   - GET  /api/videos/:id                  (Video details)');
       console.log('   - GET  /api/videos/:id/stream           (Stream video - 402 protected)');
       console.log('   - POST /api/videos/:id/verify-payment   (Verify payment)');
+      console.log('   UPLOAD:');
+      console.log('   - POST /api/upload/video                (Upload video to Arweave)');
+      console.log('   - GET  /api/upload/status/:id           (Check upload status)');
+      console.log('   USERS:');
       console.log('   - POST /api/users/connect-wallet        (Connect wallet)');
-      console.log('   - GET  /api/users/profile               (User profile)');
       console.log('   - POST /api/users/become-creator        (Become creator)');
+      console.log('   ANALYTICS:');
       console.log('   - GET  /api/analytics/platform          (Platform stats)');
       console.log('\n');
     });
