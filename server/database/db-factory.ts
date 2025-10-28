@@ -1,10 +1,11 @@
 import config from '../config';
 import { postgresDb } from './postgres';
 import { db as memoryDb } from './index';
+import { db as supabaseDb } from './supabase';
 
 /**
  * Database Factory
- * Returns either PostgreSQL or in-memory database based on configuration
+ * Returns PostgreSQL, Supabase, or in-memory database based on configuration
  */
 
 export interface Database {
@@ -46,7 +47,10 @@ export interface Database {
  * Get database instance
  */
 export function getDatabase(): Database {
-  if (config.database.usePostgres) {
+  if (config.database.useSupabase) {
+    console.log('📦 Using Supabase database (PostgreSQL hosted)');
+    return supabaseDb as Database;
+  } else if (config.database.usePostgres) {
     console.log('📊 Using PostgreSQL database');
     return postgresDb as Database;
   } else {
@@ -65,8 +69,8 @@ export async function initializeDatabase(): Promise<void> {
     await database.initialize();
   }
 
-  // Initialize sample data for development
-  if (!config.database.usePostgres && database.initializeSampleData) {
+  // Initialize sample data for development (only for in-memory)
+  if (!config.database.usePostgres && !config.database.useSupabase && database.initializeSampleData) {
     await database.initializeSampleData();
   }
 }

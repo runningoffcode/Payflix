@@ -90,7 +90,7 @@ async function startServer() {
       console.log(`🚀 Server running on port ${config.port}`);
       console.log(`🌐 API: http://localhost:${config.port}/api`);
       console.log(`💳 Protocol: X402 with USDC on Solana`);
-      console.log(`📊 Database: ${config.database.usePostgres ? 'PostgreSQL' : 'In-Memory (Dev)'}`);
+      console.log(`📊 Database: ${config.database.useSupabase ? 'Supabase (PostgreSQL)' : config.database.usePostgres ? 'PostgreSQL' : 'In-Memory (Dev)'}`);
       console.log(`🔐 Auth: JWT with ${config.jwt.expiresIn} expiry`);
       console.log(`🤖 AI Agent: ${config.aiAgent.enabled ? 'Enabled' : 'Disabled'}`);
       console.log(`💰 Revenue Split: ${config.fees.creatorPercentage}% Creator / ${config.fees.platformPercentage}% Platform`);

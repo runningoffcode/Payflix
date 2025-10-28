@@ -1,8 +1,49 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { PublicKey } from '@solana/web3.js';
 
 export default function Sidebar() {
   const location = useLocation();
+  const { publicKey, connected } = useWallet();
+  const { connection } = useConnection();
+  const [usdcBalance, setUsdcBalance] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+
+  // USDC Mint Address on Devnet
+  const USDC_MINT = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
+
+  useEffect(() => {
+    if (connected && publicKey) {
+      fetchUSDCBalance();
+    } else {
+      setUsdcBalance(0);
+    }
+  }, [connected, publicKey]);
+
+  const fetchUSDCBalance = async () => {
+    if (!publicKey) return;
+
+    setLoading(true);
+    try {
+      // Get associated token account for USDC
+      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+        mint: USDC_MINT,
+      });
+
+      if (tokenAccounts.value.length > 0) {
+        const balance = tokenAccounts.value[0].account.data.parsed.info.tokenAmount.uiAmount;
+        setUsdcBalance(balance || 0);
+      } else {
+        setUsdcBalance(0);
+      }
+    } catch (error) {
+      console.error('Error fetching USDC balance:', error);
+      setUsdcBalance(0);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -119,19 +160,51 @@ export default function Sidebar() {
         {/* Balance Card */}
         <div className="mt-4 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl p-6 text-white">
           <div className="text-sm opacity-90 mb-2">Your Balance</div>
-          <div className="text-3xl font-bold mb-4">1,034.02</div>
-          <div className="flex items-center space-x-2 mb-4">
-            <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
-              <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-            </div>
-            <span className="text-sm">ETH</span>
-          </div>
-          <button className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-sm py-3 rounded-xl font-medium transition flex items-center justify-between px-4">
-            <span>Top Up Balance</span>
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
+          {connected ? (
+            <>
+              <div className="text-3xl font-bold mb-4">
+                {loading ? (
+                  <div className="animate-pulse">Loading...</div>
+                ) : (
+                  <>{usdcBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
+                )}
+              </div>
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" fill="#2775CA"/>
+                    <text x="12" y="16" fontSize="12" fill="white" textAnchor="middle" fontWeight="bold">$</text>
+                  </svg>
+                </div>
+                <span className="text-sm">USDC</span>
+              </div>
+              <button
+                onClick={fetchUSDCBalance}
+                className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-sm py-3 rounded-xl font-medium transition flex items-center justify-between px-4"
+              >
+                <span>Refresh Balance</span>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="text-3xl font-bold mb-4">0.00</div>
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10" fill="#2775CA"/>
+                    <text x="12" y="16" fontSize="12" fill="white" textAnchor="middle" fontWeight="bold">$</text>
+                  </svg>
+                </div>
+                <span className="text-sm">USDC</span>
+              </div>
+              <div className="w-full bg-white/20 py-3 rounded-xl font-medium text-center text-sm opacity-75">
+                Connect wallet to view balance
+              </div>
+            </>
+          )}
         </div>
       </div>
     </aside>

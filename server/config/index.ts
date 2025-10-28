@@ -8,6 +8,7 @@ export const config = {
 
   database: {
     usePostgres: process.env.USE_POSTGRES === 'true',
+    useSupabase: process.env.USE_SUPABASE === 'true',
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '5432'),
     name: process.env.DB_NAME || 'flix',

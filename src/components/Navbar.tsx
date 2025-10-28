@@ -1,9 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useWallet } from '../contexts/WalletContext';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 
 export default function Navbar() {
-  const { walletAddress, isConnected, connectWallet, disconnectWallet } = useWallet();
+  const { publicKey, connected } = useWallet();
 
   const shortenAddress = (address: string) => {
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
@@ -56,19 +57,8 @@ export default function Navbar() {
               </svg>
             </button>
 
-            {/* Profile */}
-            {isConnected ? (
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full"></div>
-              </div>
-            ) : (
-              <button
-                onClick={connectWallet}
-                className="bg-indigo-600 px-6 py-2.5 rounded-lg text-white font-medium hover:bg-indigo-700 transition"
-              >
-                Connect Wallet
-              </button>
-            )}
+            {/* Solana Wallet Connection */}
+            <WalletMultiButton className="!bg-indigo-600 hover:!bg-indigo-700 !rounded-lg !h-auto !px-6 !py-2.5 !text-sm !font-medium !transition" />
           </div>
         </div>
       </div>
