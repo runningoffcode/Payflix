@@ -163,10 +163,8 @@ router.post('/:id/verify-payment', async (req: Request, res: Response) => {
     let user = await db.getUserByWallet(userWallet);
     if (!user) {
       user = await db.createUser({
-        id: `user_${uuidv4()}`,
         walletAddress: userWallet,
         isCreator: false,
-        createdAt: new Date(),
       });
     }
 
@@ -237,10 +235,8 @@ router.post('/', async (req: Request, res: Response) => {
     let creator = await db.getUserByWallet(creatorWallet);
     if (!creator) {
       creator = await db.createUser({
-        id: `user_${uuidv4()}`,
         walletAddress: creatorWallet,
         isCreator: true,
-        createdAt: new Date(),
       });
     }
 

@@ -11,9 +11,14 @@ class Database {
   private videoAccess: Map<string, VideoAccess> = new Map();
 
   // Users
-  async createUser(user: User): Promise<User> {
-    this.users.set(user.id, user);
-    return user;
+  async createUser(user: Omit<User, 'id' | 'createdAt'>): Promise<User> {
+    const newUser: User = {
+      ...user,
+      id: `user_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      createdAt: new Date(),
+    };
+    this.users.set(newUser.id, newUser);
+    return newUser;
   }
 
   async getUserById(id: string): Promise<User | null> {
@@ -149,26 +154,20 @@ class Database {
   // Initialize with sample data
   async initializeSampleData(): Promise<void> {
     // Sample creator user
-    const creator1: User = {
-      id: 'user_creator_1',
+    const creator1 = await this.createUser({
       walletAddress: 'CreatorWalletAddress1234567890123456789',
       username: 'TechCreator',
       email: 'creator@example.com',
       isCreator: true,
-      createdAt: new Date(),
-    };
-    await this.createUser(creator1);
+    });
 
     // Sample viewer user
-    const viewer1: User = {
-      id: 'user_viewer_1',
+    const viewer1 = await this.createUser({
       walletAddress: 'ViewerWalletAddress1234567890123456789',
       username: 'VideoFan',
       email: 'viewer@example.com',
       isCreator: false,
-      createdAt: new Date(),
-    };
-    await this.createUser(viewer1);
+    });
 
     // Sample videos
     const video1: Video = {

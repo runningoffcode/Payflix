@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { AuthRequest, User } from '../types';
-import config from '../config';
+import config from '../config/index';
 import { db } from '../database';
 
 /**
@@ -20,13 +20,16 @@ interface JWTPayload {
  * Generate JWT access token
  */
 export function generateAccessToken(user: User): string {
+  const options: SignOptions = {
+    expiresIn: config.jwt.expiresIn as any,
+  };
   return jwt.sign(
     {
       userId: user.id,
       walletAddress: user.walletAddress,
     },
     config.jwt.secret,
-    { expiresIn: config.jwt.expiresIn }
+    options
   );
 }
 
@@ -34,13 +37,16 @@ export function generateAccessToken(user: User): string {
  * Generate JWT refresh token
  */
 export function generateRefreshToken(user: User): string {
+  const options: SignOptions = {
+    expiresIn: config.jwt.refreshExpiresIn as any,
+  };
   return jwt.sign(
     {
       userId: user.id,
       walletAddress: user.walletAddress,
     },
     config.jwt.refreshSecret,
-    { expiresIn: config.jwt.refreshExpiresIn }
+    options
   );
 }
 

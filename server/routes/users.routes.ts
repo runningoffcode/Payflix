@@ -33,11 +33,9 @@ router.post('/connect-wallet', async (req: Request, res: Response) => {
 
     // Create new user
     user = await db.createUser({
-      id: `user_${uuidv4()}`,
       walletAddress,
       username,
       isCreator: false,
-      createdAt: new Date(),
     });
 
     res.status(201).json({
@@ -78,7 +76,7 @@ router.get('/profile', async (req: Request, res: Response) => {
     const payments = await db.getPaymentsByUser(user.id);
 
     // If creator, get their videos
-    let videos = [];
+    let videos: any[] = [];
     if (user.isCreator) {
       videos = await db.getVideosByCreator(user.id);
     }
@@ -123,10 +121,8 @@ router.post('/become-creator', async (req: Request, res: Response) => {
     if (!user) {
       // Create new creator user
       user = await db.createUser({
-        id: `user_${uuidv4()}`,
         walletAddress,
         isCreator: true,
-        createdAt: new Date(),
       });
     } else {
       // Upgrade existing user
