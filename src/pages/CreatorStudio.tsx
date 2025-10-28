@@ -62,38 +62,9 @@ export default function CreatorStudio() {
     try {
       const walletAddress = publicKey.toBase58();
 
-      // Step 1: Check/create user profile
-      setStage('Checking user profile...');
+      // Step 1: Upload video file to storage
+      setStage('Uploading video to Supabase storage...');
       setProgress(10);
-
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('*')
-        .eq('wallet_address', walletAddress)
-        .single();
-
-      let userId = existingUser?.id;
-
-      if (!existingUser) {
-        // Create user profile
-        const { data: newUser, error: userError } = await supabase
-          .from('users')
-          .insert({
-            wallet_address: walletAddress,
-            username: walletAddress.slice(0, 8),
-            email: `${walletAddress.slice(0, 8)}@flix.temp`,
-            role: 'creator'
-          })
-          .select()
-          .single();
-
-        if (userError) throw userError;
-        userId = newUser.id;
-      }
-
-      // Step 2: Upload video file to storage
-      setStage('Uploading video to Flix...');
-      setProgress(30);
 
       const videoFileName = `${Date.now()}-${videoFile.name}`;
       const { error: videoUploadError } = await supabase.storage
@@ -109,9 +80,9 @@ export default function CreatorStudio() {
         .from('videos')
         .getPublicUrl(videoFileName);
 
-      // Step 3: Upload thumbnail (or use default)
+      // Step 2: Upload thumbnail (or use default)
       setStage('Uploading thumbnail...');
-      setProgress(60);
+      setProgress(40);
 
       let thumbnailUrl = 'https://via.placeholder.com/640x360?text=Flix+Video';
 
@@ -129,27 +100,32 @@ export default function CreatorStudio() {
         }
       }
 
-      // Step 4: Create video record
-      setStage('Saving metadata...');
-      setProgress(80);
+      // Step 3: Create video record via backend API (NO MORE RLS ERRORS!)
+      setStage('Creating video record...');
+      setProgress(70);
 
-      const { data: video, error: videoError } = await supabase
-        .from('videos')
-        .insert({
+      const response = await fetch('http://localhost:5000/api/videos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           title: videoTitle,
           description: videoDescription || '',
-          creator_id: userId,
-          creator_wallet: walletAddress,
-          price: parseFloat(videoPrice),
-          video_url: videoUrl,
-          thumbnail_url: thumbnailUrl,
+          priceUsdc: parseFloat(videoPrice),
+          creatorWallet: walletAddress,
+          thumbnailUrl,
+          videoUrl,
           category: category || 'General',
-          duration: 0, // Will be updated when video metadata is extracted
-        })
-        .select()
-        .single();
+        }),
+      });
 
-      if (videoError) throw videoError;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create video');
+      }
+
+      const { video } = await response.json();
 
       setProgress(100);
       setStage('Upload complete!');

@@ -22,12 +22,12 @@ export default function PayFlix() {
       description: 'Viewers only pay for content they actually want to watch. No subscriptions, no commitments, just pure value.'
     },
     {
-      icon: '⚡',
+      icon: '/blockchain-icon.svg',
       title: 'Blockchain Powered',
       description: 'Built on Solana for lightning-fast transactions and near-zero fees. Your money moves at the speed of innovation.'
     },
     {
-      icon: '🌐',
+      icon: '/storage-icon.svg',
       title: 'Permanent Storage',
       description: 'Videos stored permanently on Arweave blockchain. Your content lives forever, uncensored and unstoppable.'
     },
