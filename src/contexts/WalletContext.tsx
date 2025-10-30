@@ -33,7 +33,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const mockWallet = `${generateMockAddress()}`;
 
       // Call API to register wallet
-      const response = await fetch('http://localhost:5000/api/users/connect-wallet', {
+      const response = await fetch('http://localhost:5001/api/users/connect-wallet', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -79,7 +79,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/users/become-creator', {
+      const response = await fetch('http://localhost:5001/api/users/become-creator', {
         method: 'POST',
         headers: {
           'x-wallet-address': walletAddress,

@@ -7,7 +7,7 @@
 import type { ApiResponse, UploadProgress, UploadResult } from '../types/supabase';
 
 // Your backend API URL
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000/api';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/api';
 
 // ============================================
 // UPLOAD VIDEO TO ARWEAVE

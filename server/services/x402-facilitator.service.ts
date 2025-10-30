@@ -1,0 +1,302 @@
+/**
+ * X402 Facilitator Service
+ * Handles payment verification and settlement using the X402 protocol
+ * Acts as an intermediary between the API server and Solana blockchain
+ */
+
+import {
+  Connection,
+  Transaction,
+  PublicKey,
+  Keypair,
+  sendAndConfirmTransaction,
+  VersionedTransaction,
+} from '@solana/web3.js';
+import bs58 from 'bs58';
+import config from '../config/index';
+
+export interface X402PaymentPayload {
+  transaction: string; // Base58 encoded transaction
+  network: string;
+  token: string; // Token mint address
+  amount: number;
+  recipient: string; // Creator wallet address
+}
+
+export interface VerificationResult {
+  valid: boolean;
+  reason?: string;
+  details?: any;
+}
+
+export interface SettlementResult {
+  success: boolean;
+  signature?: string;
+  error?: string;
+}
+
+export class X402FacilitatorService {
+  private connection: Connection;
+  private feePayer: Keypair | null = null;
+
+  constructor() {
+    // Initialize Solana connection
+    this.connection = new Connection(
+      config.solana.rpcUrl,
+      'confirmed'
+    );
+
+    // Initialize fee payer if private key is configured
+    this.initializeFeePayer();
+  }
+
+  private initializeFeePayer() {
+    try {
+      if (config.solana.platformWalletPrivateKey &&
+          config.solana.platformWalletPrivateKey !== 'your_platform_wallet_private_key_here') {
+        // Try to parse as JSON array first
+        try {
+          const keyData = JSON.parse(config.solana.platformWalletPrivateKey);
+          this.feePayer = Keypair.fromSecretKey(new Uint8Array(keyData));
+          console.log('✅ X402 Facilitator fee payer initialized:', this.feePayer.publicKey.toBase58());
+        } catch {
+          // Try as base58 string
+          const decoded = bs58.decode(config.solana.platformWalletPrivateKey);
+          this.feePayer = Keypair.fromSecretKey(decoded);
+          console.log('✅ X402 Facilitator fee payer initialized:', this.feePayer.publicKey.toBase58());
+        }
+      } else {
+        console.warn('⚠️  X402 Facilitator: No fee payer configured - transactions will fail');
+      }
+    } catch (error) {
+      console.error('❌ Failed to initialize X402 fee payer:', error);
+    }
+  }
+
+  /**
+   * Verify a payment transaction without broadcasting it
+   * This validates the transaction structure and parameters
+   */
+  async verifyPayment(payload: X402PaymentPayload): Promise<VerificationResult> {
+    try {
+      console.log('🔍 Verifying X402 payment...');
+
+      // Decode the transaction
+      const transactionBuffer = bs58.decode(payload.transaction);
+      let transaction: Transaction | VersionedTransaction;
+
+      try {
+        // Try as versioned transaction first
+        transaction = VersionedTransaction.deserialize(transactionBuffer);
+      } catch {
+        // Fall back to legacy transaction
+        transaction = Transaction.from(transactionBuffer);
+      }
+
+      // Validate network matches
+      if (payload.network !== config.solana.network) {
+        return {
+          valid: false,
+          reason: `Network mismatch: expected ${config.solana.network}, got ${payload.network}`,
+        };
+      }
+
+      // Validate token is USDC
+      if (payload.token !== config.solana.usdcMintAddress) {
+        return {
+          valid: false,
+          reason: `Unsupported token: expected USDC (${config.solana.usdcMintAddress})`,
+        };
+      }
+
+      // Validate recipient
+      try {
+        new PublicKey(payload.recipient);
+      } catch {
+        return {
+          valid: false,
+          reason: 'Invalid recipient address',
+        };
+      }
+
+      // Simulate the transaction to ensure it would succeed
+      if (transaction instanceof Transaction) {
+        const recentBlockhash = await this.connection.getLatestBlockhash();
+        transaction.recentBlockhash = recentBlockhash.blockhash;
+        transaction.feePayer = this.feePayer?.publicKey || transaction.feePayer;
+
+        try {
+          const simulation = await this.connection.simulateTransaction(transaction);
+
+          if (simulation.value.err) {
+            return {
+              valid: false,
+              reason: 'Transaction simulation failed',
+              details: simulation.value.err,
+            };
+          }
+        } catch (simError: any) {
+          return {
+            valid: false,
+            reason: 'Transaction simulation error',
+            details: simError.message,
+          };
+        }
+      }
+
+      console.log('✅ X402 payment verification successful');
+      return {
+        valid: true,
+        details: {
+          amount: payload.amount,
+          recipient: payload.recipient,
+          token: payload.token,
+        },
+      };
+    } catch (error: any) {
+      console.error('❌ X402 payment verification failed:', error);
+      return {
+        valid: false,
+        reason: 'Verification error',
+        details: error.message,
+      };
+    }
+  }
+
+  /**
+   * Settle a payment by signing and broadcasting it to the blockchain
+   * This actually executes the transaction on-chain
+   */
+  async settlePayment(payload: X402PaymentPayload): Promise<SettlementResult> {
+    try {
+      console.log('💸 Settling X402 payment on-chain...');
+
+      if (!this.feePayer) {
+        throw new Error('Fee payer not configured - cannot settle transactions');
+      }
+
+      // First verify the payment
+      const verification = await this.verifyPayment(payload);
+      if (!verification.valid) {
+        return {
+          success: false,
+          error: `Verification failed: ${verification.reason}`,
+        };
+      }
+
+      // Decode and prepare transaction
+      const transactionBuffer = bs58.decode(payload.transaction);
+      let transaction: Transaction;
+
+      try {
+        // For now, we only support legacy transactions for settlement
+        transaction = Transaction.from(transactionBuffer);
+      } catch (error) {
+        return {
+          success: false,
+          error: 'Failed to deserialize transaction',
+        };
+      }
+
+      // Set fee payer and recent blockhash
+      const recentBlockhash = await this.connection.getLatestBlockhash();
+      transaction.recentBlockhash = recentBlockhash.blockhash;
+      transaction.feePayer = this.feePayer.publicKey;
+
+      // Sign with fee payer (Kora role)
+      transaction.partialSign(this.feePayer);
+
+      // Send and confirm transaction
+      const signature = await sendAndConfirmTransaction(
+        this.connection,
+        transaction,
+        [this.feePayer],
+        {
+          commitment: 'confirmed',
+          skipPreflight: false,
+        }
+      );
+
+      console.log('✅ X402 payment settled successfully:', signature);
+
+      return {
+        success: true,
+        signature,
+      };
+    } catch (error: any) {
+      console.error('❌ X402 payment settlement failed:', error);
+      return {
+        success: false,
+        error: error.message || 'Settlement failed',
+      };
+    }
+  }
+
+  /**
+   * Get facilitator capabilities and configuration
+   */
+  getSupportedConfig() {
+    return {
+      version: '0.1.0',
+      x402_version: '1.0',
+      scheme: 'solana-spl',
+      network: config.solana.network,
+      feePayer: this.feePayer?.publicKey.toBase58() || null,
+      supportedTokens: [
+        {
+          mint: config.solana.usdcMintAddress,
+          symbol: 'USDC',
+          decimals: 6,
+        },
+      ],
+      endpoints: {
+        verify: '/api/facilitator/verify',
+        settle: '/api/facilitator/settle',
+        supported: '/api/facilitator/supported',
+      },
+    };
+  }
+
+  /**
+   * Parse X-PAYMENT header from request
+   */
+  parsePaymentHeader(header: string): X402PaymentPayload | null {
+    try {
+      // X-PAYMENT format: "x402 <base64-encoded-json>"
+      const parts = header.split(' ');
+      if (parts[0] !== 'x402' || parts.length < 2) {
+        return null;
+      }
+
+      const payloadJson = Buffer.from(parts[1], 'base64').toString('utf-8');
+      const payload = JSON.parse(payloadJson);
+
+      return payload as X402PaymentPayload;
+    } catch (error) {
+      console.error('Failed to parse X-PAYMENT header:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Create X-PAYMENT-REQUIRED response headers
+   */
+  createPaymentRequiredHeaders(amount: number, recipient: string, resource: string) {
+    const paymentInfo = {
+      amount,
+      token: config.solana.usdcMintAddress,
+      recipient,
+      network: config.solana.network,
+      resource,
+      facilitator: `http://localhost:${config.port}/api/facilitator`,
+    };
+
+    return {
+      'X-PAYMENT-REQUIRED': `x402 ${Buffer.from(JSON.stringify(paymentInfo)).toString('base64')}`,
+      'X-PAYMENT-FACILITATOR': `http://localhost:${config.port}/api/facilitator`,
+    };
+  }
+}
+
+// Singleton instance
+export const x402Facilitator = new X402FacilitatorService();

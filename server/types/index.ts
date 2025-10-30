@@ -5,6 +5,7 @@ export interface User {
   walletAddress: string;
   username?: string;
   email?: string;
+  profilePictureUrl?: string;
   isCreator: boolean;
   createdAt: Date;
 }

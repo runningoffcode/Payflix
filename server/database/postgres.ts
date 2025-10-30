@@ -212,6 +212,13 @@ class PostgresDatabase {
     return (result.rowCount ?? 0) > 0;
   }
 
+  async incrementVideoViews(videoId: string): Promise<void> {
+    await this.query(
+      'UPDATE videos SET views = views + 1 WHERE id = $1',
+      [videoId]
+    );
+  }
+
   // ==================== Payments ====================
 
   async createPayment(payment: Omit<Payment, 'id' | 'createdAt'>): Promise<Payment> {
@@ -290,6 +297,17 @@ class PostgresDatabase {
       values
     );
 
+    return result.rows[0] ? this.mapPayment(result.rows[0]) : null;
+  }
+
+  async getUserPaymentForVideo(userId: string, videoId: string): Promise<Payment | null> {
+    const result = await this.query(
+      `SELECT * FROM payments
+       WHERE user_id = $1 AND video_id = $2 AND status = 'verified'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [userId, videoId]
+    );
     return result.rows[0] ? this.mapPayment(result.rows[0]) : null;
   }
 

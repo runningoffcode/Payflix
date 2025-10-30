@@ -7,6 +7,35 @@ import { v4 as uuidv4 } from 'uuid';
 const router = Router();
 
 /**
+ * POST /api/auth/challenge
+ * Get a login challenge message to sign with wallet
+ */
+router.post('/challenge', async (req: Request, res: Response) => {
+  try {
+    const { walletAddress } = req.body;
+
+    if (!walletAddress) {
+      return res.status(400).json({ error: 'Wallet address required' });
+    }
+
+    // Generate a unique challenge message
+    const timestamp = Date.now();
+    const nonce = uuidv4();
+    const message = `Sign this message to authenticate with PayFlix\n\nWallet: ${walletAddress}\nTimestamp: ${timestamp}\nNonce: ${nonce}`;
+
+    res.json({
+      success: true,
+      message,
+      nonce,
+      timestamp,
+    });
+  } catch (error) {
+    console.error('Challenge error:', error);
+    res.status(500).json({ error: 'Failed to generate challenge' });
+  }
+});
+
+/**
  * POST /api/auth/login
  * Authenticate with wallet address and get JWT tokens
  */
@@ -37,12 +66,15 @@ router.post('/login', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
+      token: accessToken,  // Frontend expects 'token'
       accessToken,
       refreshToken,
       user: {
         id: user.id,
         walletAddress: user.walletAddress,
         username: user.username,
+        email: user.email || `${user.walletAddress.slice(0, 8)}@flix.temp`,
+        role: user.isCreator ? 'creator' : 'viewer',
         isCreator: user.isCreator,
       },
     });

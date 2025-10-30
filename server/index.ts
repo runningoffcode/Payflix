@@ -11,6 +11,7 @@ import usersRoutes from './routes/users.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import authRoutes from './routes/auth.routes';
 import uploadRoutes from './routes/video-upload.routes';
+import facilitatorRoutes from './routes/facilitator.routes';
 
 // Load environment variables
 dotenv.config();
@@ -50,6 +51,7 @@ app.use('/api/videos', videosRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/facilitator', facilitatorRoutes);
 
 // 404 handler
 app.use((req, res) => {

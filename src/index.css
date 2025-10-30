@@ -74,4 +74,30 @@ body {
       background-position: -200% 0;
     }
   }
+
+  /* Gradient Button Styles */
+  .gradient-button {
+    background: linear-gradient(135deg, #A855F7 0%, #EC4899 100%);
+    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4);
+    transition: all 0.3s ease;
+    border: none;
+  }
+
+  .gradient-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.6);
+  }
+
+  .gradient-button:active {
+    transform: translateY(0);
+  }
+
+  .gradient-button-variant {
+    background: linear-gradient(135deg, #14F195 0%, #9945FF 100%);
+    box-shadow: 0 4px 15px rgba(20, 241, 149, 0.4);
+  }
+
+  .gradient-button-variant:hover {
+    box-shadow: 0 6px 20px rgba(20, 241, 149, 0.6);
+  }
 }

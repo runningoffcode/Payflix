@@ -1,16 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
- * Creator Studio - Full Dashboard for Content Creators
- * Analytics + Video Upload in one place
+ * Creator Dashboard - Modern Design
+ * Analytics + Upload in a clean, professional layout
  */
 export default function CreatorStudio() {
   const { publicKey, connected } = useWallet();
-  const [activeTab, setActiveTab] = useState<'analytics' | 'upload'>('analytics');
+  const { user, token, login, becomeCreator } = useAuth();
 
   // Upload state
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -19,39 +18,22 @@ export default function CreatorStudio() {
   const [videoDescription, setVideoDescription] = useState('');
   const [videoPrice, setVideoPrice] = useState('');
   const [category, setCategory] = useState('');
-  const [estimatedCost, setEstimatedCost] = useState<{ ar: number; usd: number } | null>(null);
-
-  // Mock data for now - will be replaced with real Supabase data
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
   const [uploadError, setUploadError] = useState('');
 
-  // Mock stats
+  // Mock stats - replace with real data
   const stats = {
-    total_revenue: 0,
-    total_videos: 0,
-    total_views: 0,
-    total_clicks: 0,
+    totalVideos: 42,
+    totalViews: 2500000,
+    totalEarnings: 8426,
+    subscribers: 12400,
   };
-  const videos: any[] = [];
-  const statsLoading = false;
-  const videosLoading = false;
-
-  // Mock revenue data over time (last 7 days)
-  const revenueData = [
-    { date: 'Mon', revenue: 0, views: 0 },
-    { date: 'Tue', revenue: 0, views: 0 },
-    { date: 'Wed', revenue: 0, views: 0 },
-    { date: 'Thu', revenue: 0, views: 0 },
-    { date: 'Fri', revenue: 0, views: 0 },
-    { date: 'Sat', revenue: 0, views: 0 },
-    { date: 'Sun', revenue: 0, views: 0 },
-  ];
 
   const handleVideoUpload = async () => {
-    if (!videoFile || !videoTitle || !videoPrice || !publicKey) {
-      alert('Please fill in all required fields');
+    if (!videoTitle || !videoPrice || !publicKey) {
+      setUploadError('Please fill in all required fields');
       return;
     }
 
@@ -60,92 +42,99 @@ export default function CreatorStudio() {
     setProgress(0);
 
     try {
+      let currentToken = token;
+      let currentUser = user;
+
+      // Step 0: Authenticate
+      if (!currentToken || !currentUser) {
+        setStage('Authenticating...');
+        setProgress(5);
+        await login();
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        currentToken = localStorage.getItem('flix_auth_token');
+        const userStr = localStorage.getItem('flix_user');
+        currentUser = userStr ? JSON.parse(userStr) : null;
+      }
+
+      // Step 0.5: Become creator if needed
+      if (currentUser && !currentUser.isCreator) {
+        setStage('Setting up creator account...');
+        setProgress(8);
+        await becomeCreator();
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+
       const walletAddress = publicKey.toBase58();
 
-      // Step 1: Upload video file to storage
-      setStage('Uploading video to Supabase storage...');
-      setProgress(10);
+      if (videoFile) {
+        // Full upload with file
+        setStage('Uploading to Arweave...');
+        setProgress(10);
 
-      const videoFileName = `${Date.now()}-${videoFile.name}`;
-      const { error: videoUploadError } = await supabase.storage
-        .from('videos')
-        .upload(videoFileName, videoFile, {
-          cacheControl: '3600',
-          upsert: false
+        const formData = new FormData();
+        formData.append('video', videoFile);
+        formData.append('title', videoTitle);
+        formData.append('description', videoDescription || '');
+        formData.append('priceUsdc', videoPrice);
+        if (thumbnailFile) formData.append('thumbnail', thumbnailFile);
+        if (category) formData.append('category', category);
+
+        const response = await fetch('http://localhost:5001/api/upload/video', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${currentToken}` },
+          body: formData,
         });
 
-      if (videoUploadError) throw videoUploadError;
-
-      const { data: { publicUrl: videoUrl } } = supabase.storage
-        .from('videos')
-        .getPublicUrl(videoFileName);
-
-      // Step 2: Upload thumbnail (or use default)
-      setStage('Uploading thumbnail...');
-      setProgress(40);
-
-      let thumbnailUrl = 'https://via.placeholder.com/640x360?text=Flix+Video';
-
-      if (thumbnailFile) {
-        const thumbnailFileName = `${Date.now()}-${thumbnailFile.name}`;
-        const { error: thumbnailUploadError } = await supabase.storage
-          .from('thumbnails')
-          .upload(thumbnailFileName, thumbnailFile);
-
-        if (!thumbnailUploadError) {
-          const { data: { publicUrl } } = supabase.storage
-            .from('thumbnails')
-            .getPublicUrl(thumbnailFileName);
-          thumbnailUrl = publicUrl;
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Upload failed');
         }
+
+        setProgress(100);
+        setStage('✅ Upload complete!');
+      } else {
+        // Quick listing without file
+        setStage('Creating listing...');
+        setProgress(30);
+
+        const videoId = `video_${Date.now()}`;
+        const thumbnailUrl = thumbnailFile
+          ? URL.createObjectURL(thumbnailFile)
+          : `https://picsum.photos/seed/${videoId}/640/360`;
+
+        const response = await fetch('http://localhost:5001/api/videos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: videoTitle,
+            description: videoDescription || '',
+            priceUsdc: parseFloat(videoPrice),
+            creatorWallet: walletAddress,
+            thumbnailUrl,
+            videoUrl: `/api/videos/${videoId}/stream`,
+            category: category || 'General',
+          }),
+        });
+
+        if (!response.ok) throw new Error('Failed to create listing');
+
+        setProgress(100);
+        setStage('✅ Created successfully!');
       }
-
-      // Step 3: Create video record via backend API (NO MORE RLS ERRORS!)
-      setStage('Creating video record...');
-      setProgress(70);
-
-      const response = await fetch('http://localhost:5000/api/videos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: videoTitle,
-          description: videoDescription || '',
-          priceUsdc: parseFloat(videoPrice),
-          creatorWallet: walletAddress,
-          thumbnailUrl,
-          videoUrl,
-          category: category || 'General',
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create video');
-      }
-
-      const { video } = await response.json();
-
-      setProgress(100);
-      setStage('Upload complete!');
-
-      // Success!
-      alert(`Video "${videoTitle}" uploaded successfully to Flix!`);
 
       // Reset form
+      await new Promise(resolve => setTimeout(resolve, 2000));
       setVideoFile(null);
       setThumbnailFile(null);
       setVideoTitle('');
       setVideoDescription('');
       setVideoPrice('');
       setCategory('');
-      setActiveTab('analytics');
 
     } catch (error: any) {
       console.error('Upload error:', error);
-      setUploadError(error.message || 'Failed to upload video');
-      alert(`Upload failed: ${error.message}`);
+      setUploadError(error.message || 'Upload failed');
     } finally {
       setUploading(false);
     }
@@ -153,380 +142,242 @@ export default function CreatorStudio() {
 
   if (!connected) {
     return (
-      <div className="min-h-screen bg-flix-dark flex items-center justify-center">
+      <main className="flex flex-col overflow-y-auto h-full relative items-center justify-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center"
+          className="text-center z-10"
         >
-          <h2 className="text-3xl font-bold text-white mb-4">Connect Your Wallet</h2>
-          <p className="text-flix-text-secondary">Please connect your wallet to access Creator Studio</p>
+          <div className="w-24 h-24 bg-purple-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-12 h-12 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+          </div>
+          <h2 className="text-3xl font-semibold text-white mb-4">Connect Your Wallet</h2>
+          <p className="text-neutral-400">Please connect your wallet to access Creator Dashboard</p>
         </motion.div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-flix-dark">
-      <div className="container mx-auto px-4 py-8">
+    <main className="flex flex-col lg:px-16 overflow-y-auto h-full pr-8 pl-8 py-8 relative z-10">
+      <div className="max-w-7xl w-full mr-auto ml-auto">
         {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl lg:text-5xl font-semibold tracking-tight mb-3">Creator Dashboard</h1>
+          <p className="text-neutral-400">Manage your content and track your earnings.</p>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-lg p-6 hover:border-purple-500/30 transition-colors"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <span className="text-xs text-green-400 font-medium">+5</span>
+            </div>
+            <div className="text-2xl font-semibold mb-1">{stats.totalVideos}</div>
+            <div className="text-sm text-neutral-400">Total Videos</div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-lg p-6 hover:border-purple-500/30 transition-colors"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </div>
+              <span className="text-xs text-green-400 font-medium">+12.5%</span>
+            </div>
+            <div className="text-2xl font-semibold mb-1">{(stats.totalViews / 1000000).toFixed(1)}M</div>
+            <div className="text-sm text-neutral-400">Total Views</div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-lg p-6 hover:border-purple-500/30 transition-colors"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+              </div>
+              <span className="text-xs text-green-400 font-medium">+23.1%</span>
+            </div>
+            <div className="text-2xl font-semibold mb-1">${stats.totalEarnings.toLocaleString()}</div>
+            <div className="text-sm text-neutral-400">Total Earnings</div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-lg p-6 hover:border-purple-500/30 transition-colors"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-10 h-10 bg-orange-500/10 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <span className="text-xs text-green-400 font-medium">+8.2%</span>
+            </div>
+            <div className="text-2xl font-semibold mb-1">{(stats.subscribers / 1000).toFixed(1)}K</div>
+            <div className="text-sm text-neutral-400">Subscribers</div>
+          </motion.div>
+        </div>
+
+        {/* Upload Section */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          transition={{ delay: 0.5 }}
+          className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-lg p-6 mb-8"
         >
-          <h1 className="text-4xl font-bold text-white mb-2">Creator Studio</h1>
-          <p className="text-flix-text-secondary">Manage your content and track your earnings</p>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold">Upload New Video</h3>
+            <button className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Upload Video
+            </button>
+          </div>
+
+          {uploadError && (
+            <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
+              {uploadError}
+            </div>
+          )}
+
+          {uploading && (
+            <div className="mb-6 p-4 bg-neutral-700/50 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">{stage}</span>
+                <span className="text-purple-400 font-bold">{progress}%</span>
+              </div>
+              <div className="w-full bg-neutral-900 rounded-full h-2">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-neutral-300 mb-2">Video Title *</label>
+              <input
+                type="text"
+                value={videoTitle}
+                onChange={(e) => setVideoTitle(e.target.value)}
+                placeholder="Enter video title..."
+                className="w-full px-4 py-2 bg-neutral-700/50 border border-neutral-600/50 rounded-lg text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500/50 transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-300 mb-2">Price (USDC) *</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={videoPrice}
+                onChange={(e) => setVideoPrice(e.target.value)}
+                placeholder="4.99"
+                className="w-full px-4 py-2 bg-neutral-700/50 border border-neutral-600/50 rounded-lg text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500/50 transition-colors"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-neutral-300 mb-2">Description</label>
+              <textarea
+                value={videoDescription}
+                onChange={(e) => setVideoDescription(e.target.value)}
+                placeholder="Describe your video..."
+                rows={3}
+                className="w-full px-4 py-2 bg-neutral-700/50 border border-neutral-600/50 rounded-lg text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500/50 transition-colors resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-300 mb-2">Category</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full px-4 py-2 bg-neutral-700/50 border border-neutral-600/50 rounded-lg text-white focus:outline-none focus:border-purple-500/50 transition-colors"
+              >
+                <option value="">Select category</option>
+                <option value="Education">Education</option>
+                <option value="Entertainment">Entertainment</option>
+                <option value="Gaming">Gaming</option>
+                <option value="Music">Music</option>
+                <option value="Technology">Technology</option>
+                <option value="Sports">Sports</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-neutral-300 mb-2">Video File</label>
+              <input
+                type="file"
+                accept="video/*"
+                onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
+                className="w-full px-4 py-2 bg-neutral-700/50 border border-neutral-600/50 rounded-lg text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-purple-500 file:text-white file:cursor-pointer hover:file:bg-purple-600 transition-colors"
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={handleVideoUpload}
+            disabled={uploading || !videoTitle || !videoPrice}
+            className="w-full mt-6 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {uploading ? 'Uploading...' : videoFile ? '🚀 Upload to Arweave' : '📝 Create Listing'}
+          </button>
         </motion.div>
 
-        {/* Tabs */}
-        <div className="flex space-x-4 mb-8 border-b border-flix-light-gray">
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'analytics'
-                ? 'text-flix-cyan border-b-2 border-flix-cyan'
-                : 'text-flix-text-secondary hover:text-white'
-            }`}
-          >
-            📊 Analytics & Revenue
-          </button>
-          <button
-            onClick={() => setActiveTab('upload')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'upload'
-                ? 'text-flix-cyan border-b-2 border-flix-cyan'
-                : 'text-flix-text-secondary hover:text-white'
-            }`}
-          >
-            📤 Upload Video
-          </button>
-        </div>
-
-        {/* Analytics Tab */}
-        {activeTab === 'analytics' && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-6"
-          >
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <StatsCard
-                title="Total Revenue"
-                value={`$${stats?.total_revenue.toFixed(2) || '0.00'}`}
-                icon="💰"
-                color="from-green-500 to-emerald-600"
-              />
-              <StatsCard
-                title="Total Videos"
-                value={stats?.total_videos.toString() || '0'}
-                icon="🎬"
-                color="from-blue-500 to-cyan-500"
-              />
-              <StatsCard
-                title="Total Views"
-                value={stats?.total_views.toLocaleString() || '0'}
-                icon="👁️"
-                color="from-purple-500 to-pink-500"
-              />
-              <StatsCard
-                title="Total Clicks"
-                value={stats?.total_clicks.toString() || '0'}
-                icon="🖱️"
-                color="from-orange-500 to-red-500"
-              />
+        {/* Your Videos Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-lg p-6"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold">Your Videos</h3>
+          </div>
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-neutral-700/50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
             </div>
-
-            {/* Revenue Over Time Graph */}
-            <div className="bg-flix-light-gray rounded-xl p-6">
-              <h2 className="text-2xl font-bold text-white mb-6">Revenue Over Time</h2>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2D3748" />
-                    <XAxis
-                      dataKey="date"
-                      stroke="#A0AEC0"
-                      style={{ fontSize: '14px' }}
-                    />
-                    <YAxis
-                      stroke="#A0AEC0"
-                      style={{ fontSize: '14px' }}
-                      tickFormatter={(value) => `$${value}`}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#1A202C',
-                        border: '1px solid #2D3748',
-                        borderRadius: '8px',
-                        color: '#fff'
-                      }}
-                      formatter={(value: number, name: string) => {
-                        if (name === 'revenue') return [`$${value.toFixed(2)}`, 'Revenue'];
-                        return [value, 'Views'];
-                      }}
-                    />
-                    <Legend
-                      wrapperStyle={{ color: '#A0AEC0' }}
-                      formatter={(value) => value === 'revenue' ? 'Revenue ($)' : 'Views'}
-                    />
-                    <Bar
-                      dataKey="revenue"
-                      fill="#00D9FF"
-                      radius={[8, 8, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="views"
-                      fill="#8B5CF6"
-                      radius={[8, 8, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="text-flix-text-secondary text-sm mt-4 text-center">
-                Last 7 days of revenue and views. Data updates in real-time as viewers purchase your content.
-              </p>
-            </div>
-
-            {/* Your Videos */}
-            <div className="bg-flix-light-gray rounded-xl p-6">
-              <h2 className="text-2xl font-bold text-white mb-4">Your Videos</h2>
-
-              {videosLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-flix-cyan border-t-transparent mx-auto"></div>
-                  <p className="text-flix-text-secondary mt-4">Loading your videos...</p>
-                </div>
-              ) : videos.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-flix-text-secondary text-lg">No videos uploaded yet</p>
-                  <button
-                    onClick={() => setActiveTab('upload')}
-                    className="mt-4 bg-flix-cyan text-black px-6 py-3 rounded-lg font-semibold hover:bg-opacity-90 transition"
-                  >
-                    Upload Your First Video
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {videos.map((video) => (
-                    <VideoCard key={video.id} video={video} />
-                  ))}
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Upload Tab */}
-        {activeTab === 'upload' && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="max-w-4xl mx-auto"
-          >
-            <div className="bg-flix-light-gray rounded-xl p-8">
-              <h2 className="text-2xl font-bold text-white mb-6">Upload New Video</h2>
-
-              {uploadError && (
-                <div className="bg-red-500 bg-opacity-20 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-4">
-                  {uploadError}
-                </div>
-              )}
-
-              {uploading && (
-                <div className="mb-6 bg-flix-gray rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-white font-medium">{stage}</span>
-                    <span className="text-flix-cyan font-bold">{progress}%</span>
-                  </div>
-                  <div className="w-full bg-flix-dark rounded-full h-2">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progress}%` }}
-                      className="bg-gradient-to-r from-flix-cyan to-blue-500 h-2 rounded-full"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-6">
-                {/* Video File */}
-                <div>
-                  <label className="block text-white font-medium mb-2">
-                    Video File <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
-                    className="w-full bg-flix-gray text-white px-4 py-3 rounded-lg border border-flix-light-gray focus:border-flix-cyan focus:outline-none"
-                  />
-                  {videoFile && (
-                    <p className="text-sm text-flix-text-secondary mt-2">
-                      {videoFile.name} ({(videoFile.size / 1024 / 1024).toFixed(2)} MB)
-                    </p>
-                  )}
-                  {estimatedCost && (
-                    <p className="text-sm text-flix-cyan mt-2">
-                      Estimated Arweave cost: {estimatedCost.ar.toFixed(4)} AR (~${estimatedCost.usd.toFixed(2)})
-                    </p>
-                  )}
-                </div>
-
-                {/* Thumbnail */}
-                <div>
-                  <label className="block text-white font-medium mb-2">
-                    Thumbnail (Optional - auto-generated if not provided)
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setThumbnailFile(e.target.files?.[0] || null)}
-                    className="w-full bg-flix-gray text-white px-4 py-3 rounded-lg border border-flix-light-gray focus:border-flix-cyan focus:outline-none"
-                  />
-                  {thumbnailFile && (
-                    <p className="text-sm text-flix-text-secondary mt-2">
-                      {thumbnailFile.name}
-                    </p>
-                  )}
-                </div>
-
-                {/* Title */}
-                <div>
-                  <label className="block text-white font-medium mb-2">
-                    Video Title <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={videoTitle}
-                    onChange={(e) => setVideoTitle(e.target.value)}
-                    placeholder="Enter video title..."
-                    className="w-full bg-flix-gray text-white px-4 py-3 rounded-lg border border-flix-light-gray focus:border-flix-cyan focus:outline-none"
-                  />
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-white font-medium mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    value={videoDescription}
-                    onChange={(e) => setVideoDescription(e.target.value)}
-                    placeholder="Describe your video..."
-                    rows={4}
-                    className="w-full bg-flix-gray text-white px-4 py-3 rounded-lg border border-flix-light-gray focus:border-flix-cyan focus:outline-none resize-none"
-                  />
-                </div>
-
-                {/* Price & Category */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-white font-medium mb-2">
-                      Price (USDC) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={videoPrice}
-                      onChange={(e) => setVideoPrice(e.target.value)}
-                      placeholder="4.99"
-                      className="w-full bg-flix-gray text-white px-4 py-3 rounded-lg border border-flix-light-gray focus:border-flix-cyan focus:outline-none"
-                    />
-                    <p className="text-xs text-flix-text-secondary mt-1">
-                      Set to 0 for free videos
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-white font-medium mb-2">
-                      Category
-                    </label>
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="w-full bg-flix-gray text-white px-4 py-3 rounded-lg border border-flix-light-gray focus:border-flix-cyan focus:outline-none"
-                    >
-                      <option value="">Select category</option>
-                      <option value="Education">Education</option>
-                      <option value="Entertainment">Entertainment</option>
-                      <option value="Gaming">Gaming</option>
-                      <option value="Music">Music</option>
-                      <option value="Technology">Technology</option>
-                      <option value="Sports">Sports</option>
-                      <option value="News">News</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Upload Button */}
-                <button
-                  onClick={handleVideoUpload}
-                  disabled={uploading || !videoFile || !videoTitle || !videoPrice}
-                  className="w-full bg-gradient-to-r from-flix-cyan to-blue-500 text-white font-bold py-4 rounded-lg hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {uploading ? 'Uploading to The Flix...' : ' Upload to The Flix'}
-                </button>
-
-                <p className="text-sm text-flix-text-secondary text-center">
-                  Your video will be stored permanently on The Flix
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
+            <p className="text-neutral-400 mb-4">No videos uploaded yet</p>
+            <p className="text-sm text-neutral-500">Upload your first video to start earning</p>
+          </div>
+        </motion.div>
       </div>
-    </div>
-  );
-}
-
-// Stats Card Component
-function StatsCard({ title, value, icon, color }: { title: string; value: string; icon: string; color: string }) {
-  return (
-    <motion.div
-      whileHover={{ y: -4 }}
-      className="bg-flix-light-gray rounded-xl p-6 border border-flix-gray"
-    >
-      <div className={`w-12 h-12 bg-gradient-to-br ${color} rounded-lg flex items-center justify-center mb-4 text-2xl`}>
-        {icon}
-      </div>
-      <h3 className="text-flix-text-secondary text-sm mb-1">{title}</h3>
-      <p className="text-white text-3xl font-bold">{value}</p>
-    </motion.div>
-  );
-}
-
-// Video Card Component
-function VideoCard({ video }: { video: any }) {
-  return (
-    <motion.div
-      whileHover={{ y: -4 }}
-      className="bg-flix-gray rounded-lg overflow-hidden border border-flix-light-gray"
-    >
-      <img
-        src={video.thumbnail_url}
-        alt={video.title}
-        className="w-full h-40 object-cover"
-      />
-      <div className="p-4">
-        <h3 className="text-white font-semibold mb-2 line-clamp-2">{video.title}</h3>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-flix-text-secondary">{video.views} views</span>
-          <span className="text-flix-cyan font-bold">${video.price}</span>
-        </div>
-        <div className="mt-3 flex items-center justify-between">
-          <span className="text-xs text-flix-text-secondary">
-            {new Date(video.created_at).toLocaleDateString()}
-          </span>
-          <span className="text-xs bg-flix-cyan bg-opacity-20 text-flix-cyan px-2 py-1 rounded">
-            {video.category || 'General'}
-          </span>
-        </div>
-      </div>
-    </motion.div>
+    </main>
   );
 }

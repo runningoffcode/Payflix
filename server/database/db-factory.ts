@@ -22,6 +22,7 @@ export interface Database {
   getVideosByCreator(creatorId: string): Promise<any[]>;
   updateVideo(id: string, updates: any): Promise<any>;
   deleteVideo(id: string): Promise<boolean>;
+  incrementVideoViews(videoId: string): Promise<void>;
 
   // Payments
   createPayment(payment: any): Promise<any>;
@@ -30,6 +31,7 @@ export interface Database {
   getPaymentsByUser(userId: string): Promise<any[]>;
   getPaymentsByVideo(videoId: string): Promise<any[]>;
   updatePayment(id: string, updates: any): Promise<any>;
+  getUserPaymentForVideo(userId: string, videoId: string): Promise<any>;
 
   // Video Access
   grantVideoAccess(access: any): Promise<any>;

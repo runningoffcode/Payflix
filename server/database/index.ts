@@ -78,6 +78,14 @@ class Database {
     return this.videos.delete(id);
   }
 
+  async incrementVideoViews(videoId: string): Promise<void> {
+    const video = this.videos.get(videoId);
+    if (video) {
+      video.views += 1;
+      this.videos.set(videoId, video);
+    }
+  }
+
   // Payments
   async createPayment(payment: Payment): Promise<Payment> {
     this.payments.set(payment.id, payment);
@@ -116,6 +124,17 @@ class Database {
     const updated = { ...payment, ...updates };
     this.payments.set(id, updated);
     return updated;
+  }
+
+  async getUserPaymentForVideo(userId: string, videoId: string): Promise<Payment | null> {
+    for (const payment of this.payments.values()) {
+      if (payment.userId === userId &&
+          payment.videoId === videoId &&
+          payment.status === 'verified') {
+        return payment;
+      }
+    }
+    return null;
   }
 
   // Video Access

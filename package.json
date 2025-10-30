@@ -11,7 +11,8 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build:client": "vite build",
     "start": "node dist/server/index.js",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "seed": "ts-node scripts/seed-videos.ts"
   },
   "keywords": [
     "x402",
@@ -25,6 +26,10 @@
   "license": "MIT",
   "dependencies": {
     "@coral-xyz/anchor": "^0.29.0",
+    "@faremeter/fetch": "^0.10.2",
+    "@faremeter/info": "^0.10.2",
+    "@faremeter/payment-solana": "^0.10.2",
+    "@radix-ui/react-slot": "^1.2.3",
     "@solana/spl-token": "^0.3.9",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",
@@ -32,8 +37,12 @@
     "@solana/wallet-adapter-wallets": "^0.19.32",
     "@solana/web3.js": "^1.87.6",
     "@supabase/supabase-js": "^2.76.1",
+    "@types/three": "^0.180.0",
     "arweave": "^1.15.7",
     "bcryptjs": "^2.4.3",
+    "bs58": "^6.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -46,6 +55,8 @@
     "multer": "^1.4.5-lts.1",
     "pg": "^8.11.3",
     "recharts": "^3.3.0",
+    "tailwind-merge": "^3.3.1",
+    "three": "^0.180.0",
     "uuid": "^9.0.1",
     "ws": "^8.14.2"
   },

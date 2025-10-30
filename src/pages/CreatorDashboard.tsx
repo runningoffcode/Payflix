@@ -48,7 +48,7 @@ export default function CreatorDashboard() {
   const fetchCreatorStats = async () => {
     try {
       const response = await fetch(
-        `http://localhost:5000/api/analytics/creator/${walletAddress}`,
+        `http://localhost:5001/api/analytics/creator/${walletAddress}`,
       );
 
       if (response.ok) {
@@ -73,7 +73,7 @@ export default function CreatorDashboard() {
     setUploading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/videos', {
+      const response = await fetch('http://localhost:5001/api/videos', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

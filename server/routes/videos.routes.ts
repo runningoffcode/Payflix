@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../database';
-import { checkVideoAccess, send402Response, sendX402Error, validatePaymentProof } from '../middleware/x402.middleware';
-import { aiAgentService } from '../services/ai-agent.service';
+import { db } from '../database/db-factory';
+import { requireX402Payment, checkExistingPayment, X402ProtectedRequest } from '../middleware/x402.middleware';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
@@ -66,158 +65,52 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 /**
  * GET /api/videos/:id/stream
- * Stream video content (protected by x402)
- * Returns 402 if payment not made
+ * Stream video content (protected by X402)
+ * Returns 402 if payment not made, processes payment via X402 facilitator
  */
-router.get('/:id/stream', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const userWallet = req.headers['x-wallet-address'] as string;
-
-    const video = await db.getVideoById(id);
+router.get(
+  '/:id/stream',
+  checkExistingPayment(),
+  requireX402Payment(async (req: Request) => {
+    const video = await db.getVideoById(req.params.id);
     if (!video) {
-      return res.status(404).json({ error: 'Video not found' });
+      throw new Error('Video not found');
     }
+    return {
+      amount: video.priceUsdc,
+      recipient: video.creatorWallet,
+      resource: `/api/videos/${video.id}/stream`,
+    };
+  }),
+  async (req: X402ProtectedRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const video = await db.getVideoById(id);
 
-    // Check if user has access
-    let hasAccess = false;
-    if (userWallet) {
-      const user = await db.getUserByWallet(userWallet);
-      if (user) {
-        hasAccess = await db.hasVideoAccess(user.id, id);
+      if (!video) {
+        return res.status(404).json({ error: 'Video not found' });
       }
-    }
 
-    // X402 Protocol: Check access
-    const accessCheck = await checkVideoAccess(
-      id,
-      video.priceUsdc,
-      video.creatorWallet,
-      userWallet,
-      hasAccess
-    );
-
-    if (!accessCheck.allowed) {
-      // Return HTTP 402 Payment Required with payment details
-      return send402Response(res, accessCheck.challenge!);
-    }
-
-    // Increment view count
-    await db.updateVideo(id, { views: video.views + 1 });
-
-    // In a real implementation, stream the actual video file
-    // For now, return a success message with stream URL
-    res.json({
-      message: 'Access granted',
-      streamUrl: video.videoUrl,
-      video: {
-        id: video.id,
-        title: video.title,
-        duration: video.duration,
-      },
-    });
-  } catch (error) {
-    console.error('Error streaming video:', error);
-    res.status(500).json({ error: 'Failed to stream video' });
-  }
-});
-
-/**
- * POST /api/videos/:id/verify-payment
- * Verify payment and grant video access
- * This is where the AI Agent processes payments
- */
-router.post('/:id/verify-payment', async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { transactionSignature, userWallet } = req.body;
-
-    // Validate payment proof
-    const validation = validatePaymentProof({
-      transactionSignature,
-      userWallet,
-      videoId: id,
-    });
-
-    if (!validation.valid) {
-      return sendX402Error(res, validation.error || 'Invalid payment proof');
-    }
-
-    // Get video
-    const video = await db.getVideoById(id);
-    if (!video) {
-      return res.status(404).json({ error: 'Video not found' });
-    }
-
-    // Check if payment already processed
-    const existingPayment = await db.getPaymentByTransaction(transactionSignature);
-    if (existingPayment) {
-      return res.json({
-        success: true,
-        message: 'Payment already verified',
-        accessGranted: true,
+      // Payment verified - grant access
+      res.json({
+        message: 'Access granted',
+        payment: req.payment,
+        video: {
+          id: video.id,
+          title: video.title,
+          videoUrl: video.videoUrl,
+          duration: video.duration,
+        },
       });
+    } catch (error) {
+      console.error('Error streaming video:', error);
+      res.status(500).json({ error: 'Failed to stream video' });
     }
-
-    // Get or create user
-    let user = await db.getUserByWallet(userWallet);
-    if (!user) {
-      user = await db.createUser({
-        walletAddress: userWallet,
-        isCreator: false,
-      });
-    }
-
-    // AI Agent: Verify payment and split revenue
-    console.log('\n=== AI Agent Processing Payment ===');
-    const result = await aiAgentService.verifyAndSplitPayment(
-      transactionSignature,
-      video,
-      userWallet
-    );
-
-    if (!result.verified || !result.payment) {
-      return sendX402Error(res, result.error || 'Payment verification failed', 402);
-    }
-
-    // Store payment record
-    const payment = await db.createPayment({
-      ...result.payment,
-      userId: user.id,
-    } as any);
-
-    // Grant video access
-    await db.grantVideoAccess({
-      userId: user.id,
-      videoId: id,
-      paymentId: payment.id,
-      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
-    });
-
-    // Update video earnings
-    await db.updateVideo(id, {
-      earnings: video.earnings + result.payment.creatorAmount!,
-    });
-
-    console.log('=== Payment Processing Complete ===\n');
-
-    res.json({
-      success: true,
-      message: 'Payment verified successfully',
-      accessGranted: true,
-      payment: {
-        id: payment.id,
-        amount: payment.amount,
-        creatorAmount: payment.creatorAmount,
-        platformAmount: payment.platformAmount,
-        transactionSignature: payment.transactionSignature,
-      },
-    });
-  } catch (error) {
-    console.error('Error verifying payment:', error);
-    res.status(500).json({ error: 'Failed to verify payment' });
   }
-});
+);
+
+// DEPRECATED: /verify-payment endpoint replaced by X402 facilitator system
+// Payment verification now happens via X-PAYMENT header in /stream endpoint
 
 /**
  * POST /api/videos

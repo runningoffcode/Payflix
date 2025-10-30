@@ -154,6 +154,11 @@ class SupabaseDatabase {
       return [];
     }
 
+    console.log(`📊 Supabase query returned ${data?.length || 0} videos`);
+    if (data && data.length > 0) {
+      console.log('   Sample video:', data[0].title, '- Price:', data[0].price_usdc);
+    }
+
     return data.map((v) => this.mapVideoFromDb(v));
   }
 
@@ -210,6 +215,20 @@ class SupabaseDatabase {
     return true;
   }
 
+  async incrementVideoViews(videoId: string): Promise<void> {
+    const { error } = await this.supabase.rpc('increment_video_views', {
+      video_id: videoId,
+    });
+
+    if (error) {
+      // Fallback to manual increment if RPC doesn't exist
+      const video = await this.getVideoById(videoId);
+      if (video) {
+        await this.updateVideo(videoId, { views: video.views + 1 });
+      }
+    }
+  }
+
   // Payments
   async createPayment(payment: Payment): Promise<Payment> {
     const { data, error } = await this.supabase
@@ -260,6 +279,25 @@ class SupabaseDatabase {
       .from('payments')
       .select('*')
       .eq('transaction_signature', signature)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      return null;
+    }
+
+    return this.mapPaymentFromDb(data);
+  }
+
+  async getUserPaymentForVideo(userId: string, videoId: string): Promise<Payment | null> {
+    const { data, error } = await this.supabase
+      .from('payments')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('video_id', videoId)
+      .eq('status', 'verified')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
     if (error) {
