@@ -13,7 +13,9 @@ export interface Database {
   createUser(user: any): Promise<any>;
   getUserById(id: string): Promise<any>;
   getUserByWallet(walletAddress: string): Promise<any>;
+  getUserByUsername(username: string): Promise<any>;
   updateUser(id: string, updates: any): Promise<any>;
+  updateUserProfile(userId: string, updates: { username?: string; profilePicture?: string; bio?: string }): Promise<any>;
 
   // Videos
   createVideo(video: any): Promise<any>;
@@ -39,6 +41,22 @@ export interface Database {
   getVideoAccess(userId: string, videoId: string): Promise<any>;
   getUserVideoAccess(userId: string): Promise<any[]>;
 
+  // Sessions (for X402 seamless payments)
+  createSession(session: {
+    id: string;
+    userId: string;
+    userWallet: string;
+    sessionPublicKey: string;
+    sessionPrivateKeyEncrypted: string;
+    approvedAmount: number;
+    approvalSignature: string;
+    expiresAt: Date;
+  }): Promise<any>;
+  getActiveSession(userWallet: string): Promise<any | null>;
+  getSessionById(sessionId: string): Promise<any | null>;
+  updateSessionSpending(sessionId: string, amount: number): Promise<void>;
+  revokeSession(sessionId: string): Promise<boolean>;
+
   // Optional methods
   initialize?(): Promise<void>;
   initializeSampleData?(): Promise<void>;
@@ -54,10 +72,10 @@ export function getDatabase(): Database {
     return supabaseDb as Database;
   } else if (config.database.usePostgres) {
     console.log('📊 Using PostgreSQL database');
-    return postgresDb as Database;
+    return postgresDb as unknown as Database;
   } else {
     console.log('💾 Using in-memory database (development mode)');
-    return memoryDb as Database;
+    return memoryDb as unknown as Database;
   }
 }
 

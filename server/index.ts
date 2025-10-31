@@ -12,6 +12,9 @@ import analyticsRoutes from './routes/analytics.routes';
 import authRoutes from './routes/auth.routes';
 import uploadRoutes from './routes/video-upload.routes';
 import facilitatorRoutes from './routes/facilitator.routes';
+import paymentsRoutes from './routes/payments.routes';
+import sessionsRoutes from './routes/sessions.routes';
+import userProfileRoutes from './routes/user-profile.routes';
 
 // Load environment variables
 dotenv.config();
@@ -49,9 +52,12 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/videos', videosRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/users', userProfileRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/facilitator', facilitatorRoutes);
+app.use('/api/payments', paymentsRoutes);
+app.use('/api/sessions', sessionsRoutes);
 
 // 404 handler
 app.use((req, res) => {

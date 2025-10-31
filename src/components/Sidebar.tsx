@@ -4,37 +4,81 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { PublicKey } from '@solana/web3.js';
 import { motion, AnimatePresence } from 'framer-motion';
+import SessionCreationModal from './SessionCreationModal';
 
 export default function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [usdcBalance, setUsdcBalance] = useState<number>(0);
+  const [sessionBalance, setSessionBalance] = useState<number>(0);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [hasActiveSession, setHasActiveSession] = useState(false);
   const [loading, setLoading] = useState(false);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const location = useLocation();
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey, disconnect } = useWallet();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
 
-  // USDC Mint Address on Devnet
-  const USDC_MINT = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
+  // USDC Mint Address
+  const USDC_MINT = new PublicKey(import.meta.env.VITE_USDC_MINT_ADDRESS || 'DRXxfmg3PEk5Ad6DKuGSfa93ZLHDzXJKxcnjaAUGmW3z');
 
   useEffect(() => {
     if (connected && publicKey) {
-      fetchUSDCBalance();
+      fetchSessionBalance();
+      fetchWalletBalance();
       fetchUserProfile();
     } else {
-      setUsdcBalance(0);
+      setSessionBalance(0);
+      setWalletBalance(0);
+      setHasActiveSession(false);
       setProfilePicture(null);
       setUsername(null);
     }
   }, [connected, publicKey]);
 
-  const fetchUSDCBalance = async () => {
+  // Poll balances every 10 seconds to keep them updated
+  useEffect(() => {
+    if (connected && publicKey) {
+      const interval = setInterval(() => {
+        fetchSessionBalance();
+        fetchWalletBalance();
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [connected, publicKey]);
+
+  const fetchSessionBalance = async () => {
     if (!publicKey) return;
 
     setLoading(true);
+    try {
+      const walletAddress = publicKey.toBase58();
+      const response = await fetch(`/api/payments/session/balance?userWallet=${walletAddress}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Balance API Response:', data);
+        setSessionBalance(data.remainingAmount || 0);
+        setHasActiveSession(data.hasSession || false); // FIXED: was data.hasActiveSession
+      } else {
+        setSessionBalance(0);
+        setHasActiveSession(false);
+      }
+    } catch (error) {
+      console.error('Error fetching session balance:', error);
+      setSessionBalance(0);
+      setHasActiveSession(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchWalletBalance = async () => {
+    if (!publicKey) return;
+
     try {
       const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
         mint: USDC_MINT,
@@ -42,15 +86,13 @@ export default function Sidebar() {
 
       if (tokenAccounts.value.length > 0) {
         const balance = tokenAccounts.value[0].account.data.parsed.info.tokenAmount.uiAmount;
-        setUsdcBalance(balance || 0);
+        setWalletBalance(balance || 0);
       } else {
-        setUsdcBalance(0);
+        setWalletBalance(0);
       }
     } catch (error) {
-      console.error('Error fetching USDC balance:', error);
-      setUsdcBalance(0);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching wallet balance:', error);
+      setWalletBalance(0);
     }
   };
 
@@ -59,7 +101,7 @@ export default function Sidebar() {
 
     try {
       const walletAddress = publicKey.toBase58();
-      const response = await fetch('http://localhost:5001/api/users/profile', {
+      const response = await fetch('/api/users/profile', {
         headers: {
           'x-wallet-address': walletAddress,
         },
@@ -87,6 +129,16 @@ export default function Sidebar() {
 
   const closeMobileMenu = () => {
     setIsMobileOpen(false);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await disconnect();
+      setShowProfileMenu(false);
+      closeMobileMenu();
+    } catch (error) {
+      console.error('Error disconnecting wallet:', error);
+    }
   };
 
   return (
@@ -190,55 +242,138 @@ export default function Sidebar() {
             </motion.span>
           </button>
 
-          {/* USDC Balance (when expanded and connected) */}
+          {/* Balances Display (when expanded and connected) */}
           <AnimatePresence>
             {(isExpanded || isMobileOpen) && connected && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="px-3 py-2 bg-neutral-700/50 rounded-lg border border-neutral-600/50"
+                className="space-y-2"
               >
-                <div className="text-xs text-neutral-400 mb-1">USDC Balance</div>
-                <div className="text-sm font-semibold text-white">
-                  {loading ? (
-                    <span className="animate-pulse">Loading...</span>
-                  ) : (
-                    `$${usdcBalance.toFixed(2)}`
-                  )}
+                {/* Session Credits Balance */}
+                <div className="px-3 py-2 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-lg border border-purple-500/30">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1">
+                      <div className="text-xs text-purple-300 font-medium">💰 Credits</div>
+                      {hasActiveSession && (
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" title="Active Session" />
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setShowDepositModal(true)}
+                      className="text-[10px] px-2 py-0.5 rounded bg-purple-500/30 hover:bg-purple-500/50 text-purple-200 transition-colors"
+                      title="Add more credits"
+                    >
+                      + Add
+                    </button>
+                  </div>
+                  <div className="text-lg font-bold text-white">
+                    {loading ? (
+                      <span className="animate-pulse text-sm">Loading...</span>
+                    ) : hasActiveSession ? (
+                      <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                        ${sessionBalance.toFixed(2)}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-neutral-400">No deposit</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Wallet USDC Balance */}
+                <div className="px-3 py-2 bg-neutral-700/50 rounded-lg border border-neutral-600/50">
+                  <div className="text-xs text-neutral-400 mb-1">Wallet USDC</div>
+                  <div className="text-sm font-semibold text-white">
+                    {loading ? (
+                      <span className="animate-pulse">Loading...</span>
+                    ) : (
+                      `$${walletBalance.toFixed(2)}`
+                    )}
+                  </div>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
           {connected && (
-            <Link
-              to="/profile"
-              onClick={closeMobileMenu}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200 transition-colors group"
-            >
-              {profilePicture ? (
-                <img
-                  src={profilePicture}
-                  alt="Profile"
-                  className="w-5 h-5 rounded-full object-cover border border-neutral-700 flex-shrink-0"
-                />
-              ) : (
-                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                  {(username || publicKey?.toBase58() || 'U')[0].toUpperCase()}
-                </div>
-              )}
-              <motion.span
-                initial={false}
-                animate={{ opacity: isExpanded || isMobileOpen ? 1 : 0 }}
-                className="text-sm whitespace-nowrap"
+            <div className="relative">
+              <button
+                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200 transition-colors group"
               >
-                {username || 'Profile'}
-              </motion.span>
-            </Link>
+                {profilePicture ? (
+                  <img
+                    src={profilePicture}
+                    alt="Profile"
+                    className="w-5 h-5 rounded-full object-cover border border-neutral-700 flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                    {(username || publicKey?.toBase58() || 'U')[0].toUpperCase()}
+                  </div>
+                )}
+                <motion.span
+                  initial={false}
+                  animate={{ opacity: isExpanded || isMobileOpen ? 1 : 0 }}
+                  className="text-sm whitespace-nowrap"
+                >
+                  {username || 'Profile'}
+                </motion.span>
+              </button>
+
+              {/* Profile Dropdown Menu */}
+              <AnimatePresence>
+                {showProfileMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute bottom-full left-0 right-0 mb-2 bg-neutral-800 border border-neutral-700 rounded-lg shadow-xl overflow-hidden"
+                  >
+                    <Link
+                      to="/profile"
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        closeMobileMenu();
+                      }}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Profile
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:bg-neutral-700 hover:text-red-300 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Logout
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           )}
         </div>
       </motion.aside>
+
+      {/* Deposit Modal */}
+      <SessionCreationModal
+        isOpen={showDepositModal}
+        onClose={() => {
+          setShowDepositModal(false);
+        }}
+        onSessionCreated={() => {
+          setShowDepositModal(false);
+          // Refresh balances after deposit
+          fetchSessionBalance();
+          fetchWalletBalance();
+        }}
+      />
     </>
   );
 }

@@ -75,6 +75,22 @@ class SupabaseDatabase {
     return this.mapUserFromDb(data);
   }
 
+  async getUserByUsername(username: string): Promise<User | null> {
+    const { data, error } = await this.supabase
+      .from('users')
+      .select('*')
+      .eq('username', username)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      console.error('Error fetching user by username:', error);
+      return null;
+    }
+
+    return this.mapUserFromDb(data);
+  }
+
   async updateUser(id: string, updates: Partial<User>): Promise<User | null> {
     const dbUpdates: any = {};
     if (updates.username !== undefined) dbUpdates.username = updates.username;
@@ -484,6 +500,139 @@ class SupabaseDatabase {
       paymentId: data.payment_id,
       expiresAt: new Date(data.expires_at),
     };
+  }
+
+  // Sessions (for X402 seamless payments with session keys)
+  async createSession(session: {
+    id: string;
+    userId: string;
+    userWallet: string;
+    sessionPublicKey: string;
+    sessionPrivateKeyEncrypted: string;
+    approvedAmount: number;
+    approvalSignature: string;
+    expiresAt: Date;
+  }): Promise<any> {
+    const { data, error } = await this.supabase
+      .from('sessions')
+      .insert([
+        {
+          id: session.id,
+          user_id: session.userId,
+          user_wallet: session.userWallet,
+          session_public_key: session.sessionPublicKey,
+          session_private_key_encrypted: session.sessionPrivateKeyEncrypted,
+          approved_amount: session.approvedAmount,
+          spent_amount: 0,
+          remaining_amount: session.approvedAmount,
+          approval_signature: session.approvalSignature,
+          status: 'active',
+          expires_at: session.expiresAt.toISOString(),
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating session:', error);
+      throw new Error(`Failed to create session: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async getActiveSession(userWallet: string): Promise<any | null> {
+    const { data, error } = await this.supabase
+      .from('sessions')
+      .select('*')
+      .eq('user_wallet', userWallet)
+      .eq('status', 'active')
+      .gt('expires_at', new Date().toISOString())
+      .gt('remaining_amount', 0)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      return null;
+    }
+
+    return data;
+  }
+
+  async getSessionById(sessionId: string): Promise<any | null> {
+    const { data, error} = await this.supabase
+      .from('sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      return null;
+    }
+
+    return data;
+  }
+
+  async updateSessionSpending(sessionId: string, amount: number): Promise<void> {
+    const session = await this.getSessionById(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    const newSpentAmount = parseFloat(session.spent_amount) + amount;
+    const newRemainingAmount = parseFloat(session.approved_amount) - newSpentAmount;
+
+    const { error } = await this.supabase
+      .from('sessions')
+      .update({
+        spent_amount: newSpentAmount,
+        remaining_amount: newRemainingAmount,
+        last_used_at: new Date().toISOString(),
+      })
+      .eq('id', sessionId);
+
+    if (error) {
+      console.error('Error updating session spending:', error);
+      throw new Error(`Failed to update session: ${error.message}`);
+    }
+  }
+
+  async revokeSession(sessionId: string): Promise<boolean> {
+    const { error } = await this.supabase
+      .from('sessions')
+      .update({ status: 'revoked' })
+      .eq('id', sessionId);
+
+    if (error) {
+      console.error('Error revoking session:', error);
+      return false;
+    }
+
+    return true;
+  }
+
+  async updateUserProfile(userId: string, updates: { username?: string; profilePicture?: string }): Promise<User | null> {
+    const updateData: any = {};
+
+    if (updates.username) updateData.username = updates.username;
+    if (updates.profilePicture) updateData.profile_picture = updates.profilePicture;
+
+    const { data, error } = await this.supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating user profile:', error);
+      return null;
+    }
+
+    return this.mapUserFromDb(data);
   }
 
   // Initialize with sample data (optional, for development)

@@ -23,6 +23,7 @@ router.get('/', async (req: Request, res: Response) => {
       duration: v.duration,
       views: v.views,
       creatorId: v.creatorId,
+      creatorWallet: v.creatorWallet,
       createdAt: v.createdAt,
     }));
 
@@ -55,6 +56,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       duration: video.duration,
       views: video.views,
       creatorId: video.creatorId,
+      creatorWallet: video.creatorWallet,
       createdAt: video.createdAt,
     });
   } catch (error) {

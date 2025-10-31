@@ -3,9 +3,10 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
-import { PublicKey, Transaction, SystemProgram } from '@solana/web3.js';
-import { createTransferInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { PublicKey, Transaction } from '@solana/web3.js';
+import { createTransferInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
 import UnlockButton from '../components/UnlockButton';
+import bs58 from 'bs58';
 
 interface Video {
   id: string;
@@ -19,38 +20,18 @@ interface Video {
   creatorWallet?: string;
 }
 
-interface X402Challenge {
-  videoId: string;
-  price: {
-    amount: number;
-    currency: string;
-    network: string;
-  };
-  recipient: {
-    creator: string;
-    platform: string;
-  };
-  split: {
-    creator: number;
-    platform: number;
-  };
-  instructions: any;
-  message: string;
-}
-
 // USDC Mint Address on Devnet
 const USDC_MINT = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
 
 export default function VideoPlayer() {
   const { id } = useParams<{ id: string }>();
-  const { publicKey, sendTransaction, connected } = useWallet();
+  const { publicKey, connected, signTransaction } = useWallet();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
 
   const [video, setVideo] = useState<Video | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
-  const [challenge, setChallenge] = useState<X402Challenge | null>(null);
   const [paying, setPaying] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
@@ -66,7 +47,7 @@ export default function VideoPlayer() {
 
   const fetchVideo = async () => {
     try {
-      const response = await fetch(`http://localhost:5001/api/videos/${id}`);
+      const response = await fetch(`/api/videos/${id}`);
       if (!response.ok) throw new Error('Video not found');
 
       const data = await response.json();
@@ -85,7 +66,7 @@ export default function VideoPlayer() {
 
     try {
       // Try to access the video stream
-      const response = await fetch(`http://localhost:5001/api/videos/${id}/stream`, {
+      const response = await fetch(`/api/videos/${id}/stream`, {
         headers: {
           'x-wallet-address': walletAddress,
         },
@@ -94,13 +75,11 @@ export default function VideoPlayer() {
       if (response.status === 402) {
         // HTTP 402 Payment Required - x402 protocol
         const data = await response.json();
-        setChallenge(data.challenge);
         setHasAccess(false);
         console.log('💳 HTTP 402 Payment Required:', data);
       } else if (response.ok) {
         // Already have access
         setHasAccess(true);
-        setChallenge(null);
         console.log('✅ Access granted');
       }
     } catch (error) {
@@ -109,91 +88,51 @@ export default function VideoPlayer() {
   };
 
   const handlePayment = async () => {
-    if (!publicKey || !video) return;
+    if (!publicKey || !video || !connected) {
+      console.error('Missing required data:', { publicKey, video, connected });
+      return;
+    }
 
     setPaying(true);
 
     try {
-      console.log('\n=== X402 Payment Flow ===');
-      console.log('1. Creating USDC transfer transaction...');
-      console.log(`   Amount: ${video.priceUsdc} USDC`);
-      console.log(`   To: ${video.creatorWallet || 'Creator'}`);
+      console.log('\n=== Seamless X402 Payment (No Popups!) ===');
+      console.log(`Amount: ${video.priceUsdc} USDC`);
+      console.log(`Video: ${video.title}`);
+      console.log(`User Wallet: ${publicKey.toBase58()}`);
 
-      // Get creator wallet address
-      const creatorWallet = video.creatorWallet || 'SampleCreator1ABC123456789';
-      const creatorPublicKey = new PublicKey(creatorWallet);
-
-      // Convert USDC amount to smallest unit (6 decimals for USDC)
-      const usdcAmount = Math.floor(video.priceUsdc * 1_000_000);
-
-      // Get token accounts for sender and recipient
-      const fromTokenAccount = await getAssociatedTokenAddress(
-        USDC_MINT,
-        publicKey
-      );
-
-      const toTokenAccount = await getAssociatedTokenAddress(
-        USDC_MINT,
-        creatorPublicKey
-      );
-
-      // Create transfer instruction
-      const transaction = new Transaction().add(
-        createTransferInstruction(
-          fromTokenAccount,
-          toTokenAccount,
-          publicKey,
-          usdcAmount,
-          [],
-          TOKEN_PROGRAM_ID
-        )
-      );
-
-      // Get latest blockhash
-      const { blockhash } = await connection.getLatestBlockhash();
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = publicKey;
-
-      console.log('2. Sending transaction...');
-
-      // Send transaction
-      const signature = await sendTransaction(transaction, connection);
-      console.log('   Transaction sent:', signature);
-
-      console.log('3. Confirming transaction...');
-
-      // Wait for confirmation
-      await connection.confirmTransaction(signature, 'confirmed');
-
-      console.log('4. Verifying payment with backend...');
-
-      // Verify payment with backend
-      const response = await fetch(
-        `http://localhost:5001/api/videos/${id}/verify-payment`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            transactionSignature: signature,
-            userWallet: publicKey.toBase58(),
-          }),
-        }
-      );
+      // Send seamless payment request to facilitator
+      const response = await fetch('/api/payments/seamless', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          videoId: id,
+          userWallet: publicKey.toBase58(),
+        }),
+      });
 
       if (!response.ok) {
-        throw new Error('Payment verification failed');
+        const errorData = await response.json();
+        throw new Error(errorData.message || errorData.error || 'Payment failed');
       }
 
       const data = await response.json();
-      console.log('5. Payment verified!');
-      console.log(`   Transaction: ${signature}`);
-      console.log('=== Payment Complete ===\n');
+
+      if (data.alreadyPaid) {
+        console.log('✅ Already paid for this video!');
+        setHasAccess(true);
+        alert('You already have access to this video!');
+        return;
+      }
+
+      console.log('✅ Payment complete!');
+      console.log(`Transaction: ${data.signature}`);
+      console.log('=== No Wallet Popup Required! ===\n');
 
       setPaymentSuccess(true);
       setHasAccess(true);
-      setChallenge(null);
 
       // Show success message
       setTimeout(() => setPaymentSuccess(false), 3000);
@@ -202,12 +141,10 @@ export default function VideoPlayer() {
 
       let errorMessage = 'Payment failed. Please try again.';
 
-      if (error.message?.includes('Token account not found')) {
-        errorMessage = 'USDC token account not found. Please ensure you have USDC in your wallet.';
-      } else if (error.message?.includes('insufficient funds')) {
-        errorMessage = 'Insufficient USDC balance. Please add USDC to your wallet.';
-      } else if (error.message?.includes('User rejected')) {
-        errorMessage = 'Transaction was rejected.';
+      if (error.message?.includes('insufficient funds')) {
+        errorMessage = 'Facilitator has insufficient USDC. Please contact support.';
+      } else if (error.message) {
+        errorMessage = error.message;
       }
 
       alert(errorMessage);

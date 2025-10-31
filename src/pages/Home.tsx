@@ -30,7 +30,7 @@ export default function Home() {
 
   const fetchVideos = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/videos');
+      const response = await fetch('/api/videos');
       if (!response.ok) throw new Error('Failed to fetch videos');
       const data = await response.json();
       setVideos(data.videos || []);

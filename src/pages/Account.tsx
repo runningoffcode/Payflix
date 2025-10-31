@@ -57,39 +57,109 @@ export default function Account() {
   const [activeTab, setActiveTab] = useState<'profile' | 'purchases' | 'subscriptions'>('profile');
 
   useEffect(() => {
-    if (publicKey) {
-      setProfile(prev => ({ ...prev, wallet: publicKey.toBase58() }));
-      // Load profile from localStorage
-      const savedProfile = localStorage.getItem(`flix-profile-${publicKey.toBase58()}`);
-      if (savedProfile) {
-        const parsed = JSON.parse(savedProfile);
-        setProfile(parsed);
+    const loadProfile = async () => {
+      if (publicKey) {
+        const walletAddress = publicKey.toBase58();
+        setProfile(prev => ({ ...prev, wallet: walletAddress }));
+
+        try {
+          // Load profile from backend API
+          const response = await fetch(`/api/users/profile?walletAddress=${walletAddress}`);
+
+          if (response.ok) {
+            const data = await response.json();
+            setProfile({
+              name: data.username || 'Anonymous User',
+              profilePicture: data.profilePicture,
+              wallet: walletAddress,
+            });
+          } else {
+            // Profile not found, keep default
+            console.log('Profile not found, using defaults');
+          }
+        } catch (error) {
+          console.error('Error loading profile:', error);
+        }
       }
-    }
+    };
+
+    loadProfile();
   }, [publicKey]);
 
-  const handleProfilePictureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfilePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (file && publicKey) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const newProfile = { ...profile, profilePicture: reader.result as string };
-        setProfile(newProfile);
-        if (publicKey) {
-          localStorage.setItem(`flix-profile-${publicKey.toBase58()}`, JSON.stringify(newProfile));
+      reader.onloadend = async () => {
+        const profilePictureData = reader.result as string;
+
+        try {
+          // Update profile picture on backend
+          const response = await fetch('/api/users/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress: publicKey.toBase58(),
+              profilePicture: profilePictureData,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            setProfile({
+              name: data.user.username || 'Anonymous User',
+              profilePicture: data.user.profilePicture,
+              wallet: data.user.walletAddress,
+            });
+            console.log('✅ Profile picture updated');
+          } else {
+            const errorData = await response.json();
+            console.error('Failed to update profile picture:', errorData.message);
+            alert('Failed to update profile picture. Please try again.');
+          }
+        } catch (error) {
+          console.error('Error updating profile picture:', error);
+          alert('Failed to update profile picture. Please try again.');
         }
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleNameSave = () => {
-    const newProfile = { ...profile, name: tempName };
-    setProfile(newProfile);
-    if (publicKey) {
-      localStorage.setItem(`flix-profile-${publicKey.toBase58()}`, JSON.stringify(newProfile));
+  const handleNameSave = async () => {
+    if (!publicKey || !tempName.trim()) {
+      return;
     }
-    setIsEditingName(false);
+
+    try {
+      // Update username on backend
+      const response = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: publicKey.toBase58(),
+          username: tempName.trim(),
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setProfile({
+          name: data.user.username || 'Anonymous User',
+          profilePicture: data.user.profilePicture,
+          wallet: data.user.walletAddress,
+        });
+        setIsEditingName(false);
+        console.log('✅ Username updated');
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to update username:', errorData.message);
+        alert(errorData.message || 'Failed to update username. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error updating username:', error);
+      alert('Failed to update username. Please try again.');
+    }
   };
 
   const handleNameEdit = () => {

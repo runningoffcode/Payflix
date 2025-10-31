@@ -55,19 +55,30 @@ export function requireX402Payment(
       }
 
       // Parse payment header
+      console.log('📦 Payment header received:', paymentHeader.substring(0, 50) + '...');
       const payload = x402Facilitator.parsePaymentHeader(paymentHeader);
 
       if (!payload) {
+        console.log('❌ Failed to parse payment header');
         return res.status(400).json({
           error: 'Invalid Payment',
           message: 'Could not parse X-PAYMENT header',
         });
       }
 
+      console.log('✅ Payment payload parsed:', {
+        network: payload.network,
+        token: payload.token,
+        amount: payload.amount,
+        recipient: payload.recipient.substring(0, 10) + '...',
+      });
+
       // Verify payment with facilitator
+      console.log('🔍 Starting payment verification...');
       const verification = await x402Facilitator.verifyPayment(payload);
 
       if (!verification.valid) {
+        console.log('❌ Payment verification failed:', verification.reason);
         return res.status(402).json({
           error: 'Payment Verification Failed',
           message: verification.reason,
@@ -75,15 +86,19 @@ export function requireX402Payment(
         });
       }
 
+      console.log('✅ Payment verified, starting settlement...');
       // Settle payment on-chain
       const settlement = await x402Facilitator.settlePayment(payload);
 
       if (!settlement.success) {
+        console.log('❌ Payment settlement failed:', settlement.error);
         return res.status(500).json({
           error: 'Payment Settlement Failed',
           message: settlement.error,
         });
       }
+
+      console.log('✅ Payment settled! Signature:', settlement.signature);
 
       // Record payment in database
       const paymentInfo = await getPaymentInfo(req);

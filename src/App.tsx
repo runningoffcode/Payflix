@@ -6,6 +6,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import ShaderBackground from './components/ShaderBackground';
 import SplashScreen from './components/SplashScreen';
 import Sidebar from './components/Sidebar';
+import SessionManager from './components/SessionManager';
 import Home from './pages/Home';
 import VideoPlayer from './pages/VideoPlayer';
 import Profile from './pages/Profile';
@@ -38,26 +39,31 @@ function AppContent() {
 
       {/* Main Content */}
       {!showSplash && (
-        <div className="flex h-screen">
-          {/* Sidebar */}
-          <Sidebar />
+        <>
+          {/* Session Manager - Prompts deposit on wallet connect */}
+          <SessionManager />
 
-          {/* Pages Container */}
-          <div className="flex-1 relative overflow-hidden">
-            <AnimatePresence mode="wait">
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/payflix" element={<PayFlix />} />
-                <Route path="/video/:id" element={<VideoPlayer />} />
-                <Route path="/account" element={<Account />} />
-                <Route path="/profile/:wallet" element={<Profile />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/creator-studio" element={<CreatorStudio />} />
-                <Route path="/button-demo" element={<ButtonDemo />} />
-              </Routes>
-            </AnimatePresence>
+          <div className="flex h-screen">
+            {/* Sidebar */}
+            <Sidebar />
+
+            {/* Pages Container */}
+            <div className="flex-1 relative overflow-hidden">
+              <AnimatePresence mode="wait">
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/payflix" element={<PayFlix />} />
+                  <Route path="/video/:id" element={<VideoPlayer />} />
+                  <Route path="/account" element={<Account />} />
+                  <Route path="/profile/:wallet" element={<Profile />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/creator-studio" element={<CreatorStudio />} />
+                  <Route path="/button-demo" element={<ButtonDemo />} />
+                </Routes>
+              </AnimatePresence>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

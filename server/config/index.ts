@@ -20,6 +20,7 @@ export const config = {
     rpcUrl: process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',
     network: process.env.SOLANA_NETWORK || 'devnet',
     platformWalletPrivateKey: process.env.PLATFORM_WALLET_PRIVATE_KEY || '',
+    platformFeeWallet: process.env.PLATFORM_FEE_WALLET || '',
     usdcMintAddress: process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
   },
 

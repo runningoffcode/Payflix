@@ -184,12 +184,12 @@ export class X402FacilitatorService {
         };
       }
 
-      // Decode and prepare transaction
+      // Decode the signed transaction
       const transactionBuffer = bs58.decode(payload.transaction);
       let transaction: Transaction;
 
       try {
-        // For now, we only support legacy transactions for settlement
+        // Deserialize the already-signed transaction
         transaction = Transaction.from(transactionBuffer);
       } catch (error) {
         return {
@@ -198,24 +198,30 @@ export class X402FacilitatorService {
         };
       }
 
-      // Set fee payer and recent blockhash
-      const recentBlockhash = await this.connection.getLatestBlockhash();
-      transaction.recentBlockhash = recentBlockhash.blockhash;
-      transaction.feePayer = this.feePayer.publicKey;
-
-      // Sign with fee payer (Kora role)
-      transaction.partialSign(this.feePayer);
-
-      // Send and confirm transaction
-      const signature = await sendAndConfirmTransaction(
-        this.connection,
-        transaction,
-        [this.feePayer],
+      // The transaction is already fully signed by the user
+      // Just broadcast it to the network
+      console.log('📡 Broadcasting signed transaction to Solana...');
+      const signature = await this.connection.sendRawTransaction(
+        transactionBuffer,
         {
-          commitment: 'confirmed',
           skipPreflight: false,
+          preflightCommitment: 'confirmed',
         }
       );
+
+      // Wait for confirmation
+      console.log('⏳ Waiting for transaction confirmation...');
+      const confirmation = await this.connection.confirmTransaction(
+        signature,
+        'confirmed'
+      );
+
+      if (confirmation.value.err) {
+        return {
+          success: false,
+          error: `Transaction failed: ${JSON.stringify(confirmation.value.err)}`,
+        };
+      }
 
       console.log('✅ X402 payment settled successfully:', signature);
 
