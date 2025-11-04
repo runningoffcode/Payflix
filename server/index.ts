@@ -1,7 +1,10 @@
+// MUST load dotenv FIRST before any other imports
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
+
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
 import config from './config/index';
 import { db, initializeDatabase } from './database/db-factory';
 
@@ -10,11 +13,16 @@ import videosRoutes from './routes/videos.routes';
 import usersRoutes from './routes/users.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import authRoutes from './routes/auth.routes';
-import uploadRoutes from './routes/video-upload.routes';
+// OLD: import uploadRoutes from './routes/video-upload.routes';
+import uploadRoutes from './routes/video-upload-v2.routes'; // NEW: Bulletproof upload with detailed logging
 import facilitatorRoutes from './routes/facilitator.routes';
 import paymentsRoutes from './routes/payments.routes';
 import sessionsRoutes from './routes/sessions.routes';
 import userProfileRoutes from './routes/user-profile.routes';
+import storageRoutes from './routes/storage.routes';
+import commentsRoutes from './routes/comments.routes';
+// TODO: Fix these routes to work with Supabase
+// import creatorRoutes from './routes/creator.routes';
 
 // Load environment variables
 dotenv.config();
@@ -26,6 +34,24 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true,
 }));
+
+// Content Security Policy - Permissive for development
+app.use((req, res, next) => {
+  if (config.nodeEnv === 'development') {
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; " +
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline'; " +
+      "style-src 'self' 'unsafe-inline'; " +
+      "img-src 'self' data: blob: https:; " +
+      "connect-src 'self' https: wss: ws:; " +
+      "font-src 'self' data:; " +
+      "media-src 'self' blob: https:;"
+    );
+  }
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -58,6 +84,10 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/facilitator', facilitatorRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/sessions', sessionsRoutes);
+app.use('/api/storage', storageRoutes);
+app.use('/api/comments', commentsRoutes);
+// TODO: Fix these routes to work with Supabase
+// app.use('/api/creator', creatorRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -106,7 +136,7 @@ async function startServer() {
       console.log('   ✓ Instant creator monetization');
       console.log('   ✓ No ads for users');
       console.log('   ✓ Real Solana wallet integration (Phantom/Solflare)');
-      console.log('   ✓ Arweave decentralized video storage');
+      console.log('   ✓ Cloudflare R2 video storage (zero bandwidth costs)');
       console.log('   ✓ JWT authentication');
       console.log('   ✓ PostgreSQL support');
       console.log('   ✓ AI-powered payment verification');
@@ -120,7 +150,7 @@ async function startServer() {
       console.log('   - GET  /api/videos/:id/stream           (Stream video - 402 protected)');
       console.log('   - POST /api/videos/:id/verify-payment   (Verify payment)');
       console.log('   UPLOAD:');
-      console.log('   - POST /api/upload/video                (Upload video to Arweave)');
+      console.log('   - POST /api/upload/video                (Upload video to The Flix)');
       console.log('   - GET  /api/upload/status/:id           (Check upload status)');
       console.log('   USERS:');
       console.log('   - POST /api/users/connect-wallet        (Connect wallet)');

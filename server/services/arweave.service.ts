@@ -2,14 +2,17 @@ import Arweave from 'arweave';
 import fs from 'fs';
 import path from 'path';
 import config from '../config';
+import { localStorageService } from './local-storage.service';
 
 /**
  * Arweave Storage Service
  * Handles permanent decentralized video storage on Arweave
+ * Falls back to local storage when Arweave wallet is not configured
  */
 export class ArweaveService {
   private arweave: Arweave;
   private wallet: any;
+  private useLocalStorage: boolean = false;
 
   constructor() {
     // Initialize Arweave client
@@ -19,32 +22,40 @@ export class ArweaveService {
       protocol: config.arweave.protocol,
     });
 
-    // Load wallet from file or environment
-    this.loadWallet();
+    // Load wallet from file or environment (synchronously)
+    this.loadWalletSync();
   }
 
   /**
-   * Load Arweave wallet
+   * Load Arweave wallet synchronously
    */
-  private async loadWallet(): Promise<void> {
+  private loadWalletSync(): void {
     try {
+      console.log('🔍 DEBUG: Checking Arweave wallet path:', config.arweave.walletPath);
+      console.log('🔍 DEBUG: Path exists?', config.arweave.walletPath ? fs.existsSync(config.arweave.walletPath) : false);
+
       if (config.arweave.walletPath && fs.existsSync(config.arweave.walletPath)) {
         const walletData = fs.readFileSync(config.arweave.walletPath, 'utf8');
         this.wallet = JSON.parse(walletData);
         console.log('✅ Arweave wallet loaded');
+        this.useLocalStorage = false;
       } else if (config.arweave.walletKey) {
         this.wallet = JSON.parse(config.arweave.walletKey);
         console.log('✅ Arweave wallet loaded from environment');
+        this.useLocalStorage = false;
       } else {
-        console.warn('⚠️  No Arweave wallet configured - uploads will fail');
+        console.warn('⚠️  No Arweave wallet configured - using local storage fallback');
+        this.useLocalStorage = true;
       }
     } catch (error) {
       console.error('❌ Failed to load Arweave wallet:', error);
+      console.log('   Using local storage fallback');
+      this.useLocalStorage = true;
     }
   }
 
   /**
-   * Upload video to Arweave
+   * Upload video to Arweave (or local storage if Arweave not configured)
    */
   async uploadVideo(
     filePath: string,
@@ -58,6 +69,12 @@ export class ArweaveService {
     transactionId: string;
     url: string;
   }> {
+    // Use local storage fallback if Arweave not configured
+    if (this.useLocalStorage) {
+      console.log('📦 Using local storage (Arweave not configured)');
+      return localStorageService.uploadVideo(filePath, metadata);
+    }
+
     if (!this.wallet) {
       throw new Error('Arweave wallet not configured');
     }
@@ -113,7 +130,7 @@ export class ArweaveService {
   }
 
   /**
-   * Upload video thumbnail to Arweave
+   * Upload video thumbnail to Arweave (or local storage if Arweave not configured)
    */
   async uploadThumbnail(
     filePath: string,
@@ -122,6 +139,12 @@ export class ArweaveService {
     transactionId: string;
     url: string;
   }> {
+    // Use local storage fallback if Arweave not configured
+    if (this.useLocalStorage) {
+      console.log('📦 Using local storage for thumbnail (Arweave not configured)');
+      return localStorageService.uploadThumbnail(filePath, videoTitle);
+    }
+
     if (!this.wallet) {
       throw new Error('Arweave wallet not configured');
     }

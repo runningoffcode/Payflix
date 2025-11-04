@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { useWallet, useConnection } from '../hooks/useWallet';
+import { WalletMultiButton } from '../hooks/useWallet';
+import { LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { fetchTokenMetadata } from '../services/helius-token-metadata.service';
+import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
 
 /**
  * YouTube-style Navbar for Flix
@@ -10,10 +14,102 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
  */
 export default function FlixNavbar() {
   const location = useLocation();
-  const { connected } = useWallet();
+  const { publicKey, connected, disconnect } = useWallet();
+  const { connection } = useConnection();
   const [searchQuery, setSearchQuery] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [balances, setBalances] = useState<{ mint: string; balance: number; symbol: string; name: string; logo?: string }[]>([]);
+  const [solBalance, setSolBalance] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // DEBUG: Verify new code is loaded
+  console.log('🔵 FlixNavbar loaded with dropdown functionality - Version 2.0');
 
   const isActive = (path: string) => location.pathname === path;
+
+  const shortenAddress = (address: string) => {
+    return `${address.slice(0, 4)}...${address.slice(-4)}`;
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Fetch wallet balances with RPC queue (prevents rate limiting)
+  const fetchBalances = async () => {
+    if (!publicKey || !connected) return;
+
+    console.log('🔵 FlixNavbar: Fetching balances (queued)...');
+    setLoading(true);
+    try {
+      // Queue SOL balance fetch with LOW priority
+      const solBal = await queueRPCRequest(
+        () => connection.getBalance(publicKey),
+        RPC_PRIORITY.LOW
+      );
+      setSolBalance(solBal / LAMPORTS_PER_SOL);
+
+      // Queue token accounts fetch with LOW priority
+      const tokenAccounts = await queueRPCRequest(
+        () => connection.getParsedTokenAccountsByOwner(publicKey, {
+          programId: TOKEN_PROGRAM_ID,
+        }),
+        RPC_PRIORITY.LOW
+      );
+
+      const tokensWithBalance: { mint: string; balance: number }[] = [];
+
+      for (const { account } of tokenAccounts.value) {
+        const parsedInfo = account.data.parsed.info;
+        const balance = parsedInfo.tokenAmount.uiAmount;
+
+        if (balance > 0) {
+          tokensWithBalance.push({
+            mint: parsedInfo.mint,
+            balance,
+          });
+        }
+      }
+
+      // Fetch metadata for all tokens from Helius
+      const mintAddresses = tokensWithBalance.map(t => t.mint);
+      const metadata = await fetchTokenMetadata(mintAddresses);
+
+      // Combine balance + metadata
+      const tokens = tokensWithBalance.map(({ mint, balance }) => {
+        const meta = metadata.get(mint);
+        return {
+          mint,
+          balance,
+          symbol: meta?.symbol || mint.slice(0, 4) + '...',
+          name: meta?.name || 'Unknown Token',
+          logo: meta?.logo,
+        };
+      });
+
+      setBalances(tokens);
+      console.log('🔵 FlixNavbar: Found', tokens.length, 'tokens with balances');
+    } catch (error: any) {
+      console.error('❌ FlixNavbar: Error fetching balances:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch balances when dropdown opens
+  useEffect(() => {
+    if (showDropdown && connected) {
+      fetchBalances();
+    }
+  }, [showDropdown, connected]);
 
   // Embedded logo as base64 data URL
   const flixLogoBase64 = "data:image/png;base64,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";
@@ -94,7 +190,131 @@ export default function FlixNavbar() {
             </div>
 
             {/* Wallet Button */}
-            <WalletMultiButton className="!bg-flix-cyan hover:!bg-opacity-80 !rounded-lg !h-10 !px-4 !text-sm !font-medium !transition" />
+            {!connected ? (
+              <WalletMultiButton className="!bg-flix-cyan hover:!bg-opacity-80 !rounded-lg !h-10 !px-4 !text-sm !font-medium !transition" />
+            ) : (
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => {
+                    console.log('🔵 Wallet button clicked! Current dropdown state:', showDropdown);
+                    setShowDropdown(!showDropdown);
+                  }}
+                  className="bg-flix-cyan hover:bg-opacity-80 rounded-lg px-4 h-10 text-sm font-medium transition text-white flex items-center space-x-2"
+                >
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span>{publicKey ? shortenAddress(publicKey.toBase58()) : 'Unknown'}</span>
+                  <svg
+                    className={`w-4 h-4 transition-transform ${showDropdown ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showDropdown && (
+                  <div className="absolute right-0 mt-2 w-80 bg-flix-dark border border-flix-light-gray rounded-xl shadow-2xl overflow-hidden z-50">
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-flix-cyan to-flix-purple p-4 text-white">
+                      <div className="text-xs font-medium opacity-80 mb-1">Wallet Address</div>
+                      <div className="font-mono text-sm break-all">
+                        {publicKey?.toBase58()}
+                      </div>
+                    </div>
+
+                    {/* Balances */}
+                    <div className="p-4">
+                      <div className="text-sm font-semibold text-white mb-3">Token Balances</div>
+
+                      {loading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-2 border-flix-cyan border-t-transparent"></div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {/* SOL Balance */}
+                          <div className="flex items-center justify-between p-3 bg-flix-gray rounded-lg">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                                <span className="text-white text-xs font-bold">◎</span>
+                              </div>
+                              <div>
+                                <div className="text-sm font-semibold text-white">SOL</div>
+                                <div className="text-xs text-flix-text-secondary">Solana</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-semibold text-white">
+                                {solBalance.toFixed(4)}
+                              </div>
+                              <div className="text-xs text-flix-text-secondary">SOL</div>
+                            </div>
+                          </div>
+
+                          {/* Token Balances */}
+                          {balances.map((token) => (
+                            <div
+                              key={token.mint}
+                              className="flex items-center justify-between p-3 bg-flix-gray rounded-lg"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 bg-gradient-to-br from-flix-cyan to-blue-500 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs font-bold">
+                                    {token.symbol.slice(0, 1)}
+                                  </span>
+                                </div>
+                                <div>
+                                  <div className="text-sm font-semibold text-white">
+                                    {token.symbol}
+                                  </div>
+                                  <div className="text-xs text-flix-text-secondary truncate max-w-[120px]">
+                                    {token.mint.slice(0, 8)}...
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-semibold text-white">
+                                  {token.balance.toLocaleString()}
+                                </div>
+                                <div className="text-xs text-flix-text-secondary">{token.symbol}</div>
+                              </div>
+                            </div>
+                          ))}
+
+                          {balances.length === 0 && !loading && (
+                            <div className="text-center py-6 text-flix-text-secondary text-sm">
+                              No tokens found
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="border-t border-flix-light-gray p-4">
+                      <button
+                        onClick={() => {
+                          disconnect();
+                          setShowDropdown(false);
+                        }}
+                        className="w-full bg-red-500 bg-opacity-10 hover:bg-opacity-20 text-red-400 font-medium py-2.5 rounded-lg transition flex items-center justify-center space-x-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                          />
+                        </svg>
+                        <span>Disconnect Wallet</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

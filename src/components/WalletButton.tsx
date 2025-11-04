@@ -1,13 +1,40 @@
 import React from 'react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
 
 /**
  * Styled Wallet Button
- * Uses the Solana wallet adapter's built-in button with custom styling
+ * Uses Privy for authentication
  */
 export function WalletButton() {
+  const { user: privyUser, login, logout, authenticated, ready } = usePrivy();
+  const { wallets } = useWallets();
+
+  const getWalletAddress = (): string | null => {
+    if (!privyUser) return null;
+
+    const solanaWallets = wallets?.filter((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana');
+    if (solanaWallets && solanaWallets.length > 0) {
+      return solanaWallets[0].address;
+    }
+
+    const embeddedWallet = privyUser.linkedAccounts?.find(
+      (acc: any) => acc.type === 'wallet' && acc.chainType === 'solana'
+    );
+    if (embeddedWallet) {
+      return embeddedWallet.address;
+    }
+
+    return null;
+  };
+
+  const walletAddress = getWalletAddress();
+  const connected = authenticated && !!walletAddress;
+  const connecting = !ready;
+
   return (
-    <WalletMultiButton
+    <button
+      onClick={() => (connected ? logout() : login())}
+      disabled={connecting}
       style={{
         background: 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)',
         border: 'none',
@@ -16,8 +43,12 @@ export function WalletButton() {
         fontWeight: '600',
         fontSize: '0.875rem',
         transition: 'opacity 0.2s',
+        opacity: connecting ? 0.5 : 1,
+        cursor: connecting ? 'not-allowed' : 'pointer',
       }}
-    />
+    >
+      {connecting ? 'Connecting...' : connected ? shortenAddress(walletAddress || '') : 'Connect Wallet'}
+    </button>
   );
 }
 
@@ -25,7 +56,30 @@ export function WalletButton() {
  * Alternative custom wallet button
  */
 export function CustomWalletButton() {
-  const { connect, disconnect, connected, connecting, address } = useSolanaWallet();
+  const { user: privyUser, login, logout, authenticated, ready } = usePrivy();
+  const { wallets } = useWallets();
+
+  const getWalletAddress = (): string | null => {
+    if (!privyUser) return null;
+
+    const solanaWallets = wallets?.filter((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana');
+    if (solanaWallets && solanaWallets.length > 0) {
+      return solanaWallets[0].address;
+    }
+
+    const embeddedWallet = privyUser.linkedAccounts?.find(
+      (acc: any) => acc.type === 'wallet' && acc.chainType === 'solana'
+    );
+    if (embeddedWallet) {
+      return embeddedWallet.address;
+    }
+
+    return null;
+  };
+
+  const address = getWalletAddress();
+  const connected = authenticated && !!address;
+  const connecting = !ready;
 
   if (connected && address) {
     return (
@@ -35,7 +89,7 @@ export function CustomWalletButton() {
           <span className="text-sm text-white">{shortenAddress(address)}</span>
         </div>
         <button
-          onClick={() => disconnect()}
+          onClick={() => logout()}
           className="text-gray-400 hover:text-white transition"
         >
           Disconnect
@@ -46,7 +100,7 @@ export function CustomWalletButton() {
 
   return (
     <button
-      onClick={connect}
+      onClick={() => login()}
       disabled={connecting}
       className="gradient-bg px-6 py-2 rounded-lg text-white font-medium hover:opacity-90 transition disabled:opacity-50"
     >
@@ -58,6 +112,3 @@ export function CustomWalletButton() {
 function shortenAddress(address: string): string {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
-
-// Re-export the hook for convenience
-import { useSolanaWallet } from '../hooks/useSolanaWallet';

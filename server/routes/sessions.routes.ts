@@ -20,6 +20,9 @@ const pendingSessions = new Map<string, {
   userWallet: string;
   approvedAmount: number;
   expiresAt: Date;
+  isTopUp: boolean;
+  newDepositAmount: number;
+  existingSessionData?: any;
 }>();
 
 // Encryption settings
@@ -76,8 +79,8 @@ router.post('/create', async (req, res) => {
       });
     }
 
-    console.log(`\n🔐 Creating session for wallet: ${userWallet}`);
-    console.log(`   Approved amount: ${approvedAmount} USDC`);
+    console.log(`\n🔐 Creating/updating session for wallet: ${userWallet}`);
+    console.log(`   Requested amount: ${approvedAmount} USDC`);
 
     // Get or create user
     let user = await db.getUserByWallet(userWallet);
@@ -91,9 +94,41 @@ router.post('/create', async (req, res) => {
       });
     }
 
-    // Generate session keypair
-    const sessionKeypair = Keypair.generate();
-    console.log(`   Session public key: ${sessionKeypair.publicKey.toBase58()}`);
+    // Check if user already has an active session
+    const existingSession = await db.getActiveSession(userWallet);
+
+    let sessionKeypair: Keypair;
+    let sessionId: string;
+    let totalApprovedAmount: number;
+    let isTopUp = false;
+
+    if (existingSession) {
+      // TOP UP existing session
+      console.log(`   ✅ Found existing session - adding to balance`);
+      console.log(`   Current remaining: ${existingSession.remaining_amount} USDC`);
+
+      // Decrypt existing session keypair
+      const encryptedKey = existingSession.session_private_key_encrypted;
+      const decryptedKey = decryptPrivateKey(encryptedKey);
+      sessionKeypair = Keypair.fromSecretKey(decryptedKey);
+      sessionId = existingSession.id;
+
+      // Calculate new total approval amount (current remaining + new deposit)
+      totalApprovedAmount = parseFloat(existingSession.remaining_amount) + approvedAmount;
+      isTopUp = true;
+
+      console.log(`   New total approval: ${totalApprovedAmount} USDC`);
+      console.log(`   Reusing session key: ${sessionKeypair.publicKey.toBase58()}`);
+    } else {
+      // CREATE new session
+      console.log(`   Creating new session`);
+      sessionKeypair = Keypair.generate();
+      sessionId = crypto.randomUUID();
+      totalApprovedAmount = approvedAmount;
+
+      console.log(`   Session ID: ${sessionId}`);
+      console.log(`   Session public key: ${sessionKeypair.publicKey.toBase58()}`);
+    }
 
     // Setup Solana connection
     const connection = new Connection(
@@ -104,18 +139,62 @@ router.post('/create', async (req, res) => {
       process.env.USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'
     );
 
+    console.log(`   🪙 USDC Mint: ${usdcMint.toBase58()}`);
+
     // Get user's USDC account
     const userPublicKey = new PublicKey(userWallet);
     const userUsdcAccount = await getAssociatedTokenAddress(usdcMint, userPublicKey);
 
-    // Create approval transaction
+    console.log(`   💳 User USDC Account: ${userUsdcAccount.toBase58()}`);
+
+    // CRITICAL: Verify user has enough USDC before allowing approval
+    try {
+      const userAccountInfo = await connection.getAccountInfo(userUsdcAccount);
+      if (!userAccountInfo) {
+        console.log(`   ❌ User has no USDC account`);
+        return res.status(400).json({
+          error: 'No USDC Account',
+          message: `You don't have a USDC account. Please add USDC to your wallet first on Solana Devnet.`,
+        });
+      }
+
+      const userBalance = await connection.getTokenAccountBalance(userUsdcAccount);
+      const userBalanceUsdc = parseFloat(userBalance.value.uiAmountString || '0');
+
+      console.log(`   💰 User's wallet balance: ${userBalanceUsdc} USDC`);
+      console.log(`   💵 Requested deposit: ${approvedAmount} USDC`);
+
+      // For new sessions, check if user has enough for the full deposit
+      // For top-ups, check if user has enough for the NEW deposit amount
+      const depositAmount = isTopUp ? approvedAmount : approvedAmount;
+
+      if (userBalanceUsdc < depositAmount) {
+        console.log(`   ❌ Insufficient wallet balance`);
+        return res.status(400).json({
+          error: 'Insufficient Balance',
+          message: `You only have ${userBalanceUsdc} USDC in your wallet but are trying to deposit ${depositAmount} USDC. Please reduce your deposit amount or add more USDC to your wallet.`,
+          walletBalance: userBalanceUsdc,
+          requestedAmount: depositAmount,
+        });
+      }
+
+      console.log(`   ✅ Balance check passed`);
+    } catch (error: any) {
+      console.error(`   ❌ Error checking wallet balance:`, error);
+      return res.status(500).json({
+        error: 'Balance Check Failed',
+        message: 'Unable to verify your wallet balance. Please try again.',
+      });
+    }
+
+    // Create approval transaction (for total amount - this replaces any existing approval)
     const transaction = new Transaction();
     transaction.add(
       createApproveInstruction(
         userUsdcAccount,
         sessionKeypair.publicKey,
         userPublicKey,
-        Math.floor(approvedAmount * 1_000_000)
+        Math.floor(totalApprovedAmount * 1_000_000) // Total amount, not just new deposit
       )
     );
 
@@ -134,9 +213,6 @@ router.post('/create', async (req, res) => {
     const expirationHours = expiresIn || 24;
     const expiresAt = new Date(Date.now() + expirationHours * 60 * 60 * 1000);
 
-    // Generate session ID
-    const sessionId = crypto.randomUUID();
-
     // Encrypt and temporarily store session keypair (will be saved after user signs)
     const encryptedPrivateKey = encryptPrivateKey(sessionKeypair.secretKey);
 
@@ -146,11 +222,13 @@ router.post('/create', async (req, res) => {
       encryptedPrivateKey,
       userId: user.id,
       userWallet,
-      approvedAmount,
+      approvedAmount: totalApprovedAmount,
       expiresAt,
+      isTopUp,
+      newDepositAmount: approvedAmount, // Track how much is being added
+      existingSessionData: existingSession || undefined,
     });
 
-    console.log(`   Session ID: ${sessionId}`);
     console.log(`   Expires at: ${expiresAt.toISOString()}`);
     console.log(`   ✅ Session prepared (awaiting user signature)`);
 
@@ -196,46 +274,112 @@ router.post('/confirm', async (req, res) => {
     }
 
     console.log(`\n✅ Confirming session: ${sessionId}`);
-    console.log(`   Signature: ${approvalSignature}`);
 
-    // Verify signature on Solana (simplified - in production, verify the transaction)
+    // Setup Solana connection
     const connection = new Connection(
       process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',
       'confirmed'
     );
 
+    // CRITICAL FIX: Broadcast the signed transaction!
+    // The frontend sends us the serialized signed transaction, not the signature
+    let transactionSignature: string;
+
     try {
-      const tx = await connection.getTransaction(approvalSignature, {
-        commitment: 'confirmed',
-        maxSupportedTransactionVersion: 0,
+      console.log('📡 Broadcasting approval transaction to blockchain...');
+
+      // Deserialize the signed transaction
+      const transactionBuffer = Buffer.from(approvalSignature, 'base64');
+      const transaction = Transaction.from(transactionBuffer);
+
+      // Send the transaction immediately (don't update blockhash - it would invalidate the signature!)
+      transactionSignature = await connection.sendRawTransaction(transaction.serialize(), {
+        skipPreflight: false,
+        preflightCommitment: 'confirmed',
+        maxRetries: 3,
       });
 
-      if (!tx) {
+      console.log(`   Transaction sent: ${transactionSignature}`);
+
+      // Wait for confirmation
+      console.log('⏳ Waiting for confirmation...');
+      const confirmation = await connection.confirmTransaction(transactionSignature, 'confirmed');
+
+      if (confirmation.value.err) {
+        throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+      }
+
+      console.log('✅ Transaction confirmed on blockchain!');
+      console.log(`   Delegate approval is now active`);
+
+    } catch (error: any) {
+      console.error('❌ Failed to broadcast transaction:', error);
+
+      // Check if it's a duplicate transaction error
+      if (error.message && error.message.includes('already been processed')) {
+        console.log('⚠️  Transaction was already processed - checking on-chain status...');
         return res.status(400).json({
-          error: 'Invalid signature',
-          message: 'Transaction not found on blockchain',
+          error: 'Transaction Already Processed',
+          message: 'This transaction was already completed. Please refresh the page and try again if needed.',
         });
       }
-    } catch (error) {
-      console.warn('Could not verify transaction (may not be confirmed yet)');
+
+      // Check if it's a blockhash expiration error
+      if (error.message && (error.message.includes('Blockhash not found') || error.message.includes('block height exceeded'))) {
+        console.log('⚠️  Transaction blockhash expired - user took too long to sign');
+        return res.status(400).json({
+          error: 'Transaction Expired',
+          message: 'Transaction expired. Please try again and sign more quickly after clicking "Add Credits".',
+        });
+      }
+
+      return res.status(400).json({
+        error: 'Transaction Failed',
+        message: error.message || 'Failed to broadcast approval transaction',
+      });
     }
 
-    // Save session to database
-    await db.createSession({
-      id: sessionId,
-      userId: pendingSession.userId,
-      userWallet: pendingSession.userWallet,
-      sessionPublicKey: pendingSession.sessionKeypair.publicKey.toBase58(),
-      sessionPrivateKeyEncrypted: pendingSession.encryptedPrivateKey,
-      approvedAmount: pendingSession.approvedAmount,
-      approvalSignature,
-      expiresAt: pendingSession.expiresAt,
-    });
+    // Save or update session in database
+    if (pendingSession.isTopUp && pendingSession.existingSessionData) {
+      // UPDATE existing session - add to balance
+      const existingSession = pendingSession.existingSessionData;
+      const newApprovedAmount = parseFloat(existingSession.approved_amount) + pendingSession.newDepositAmount;
+      const newRemainingAmount = parseFloat(existingSession.remaining_amount) + pendingSession.newDepositAmount;
+
+      console.log(`   💰 Updating session balance:`);
+      console.log(`      Previous approved: ${existingSession.approved_amount} USDC`);
+      console.log(`      New deposit: ${pendingSession.newDepositAmount} USDC`);
+      console.log(`      New total approved: ${newApprovedAmount} USDC`);
+      console.log(`      New remaining: ${newRemainingAmount} USDC`);
+
+      // Update the session in database (use actual blockchain transaction signature)
+      await db.updateSessionBalance(
+        sessionId,
+        newApprovedAmount,
+        newRemainingAmount,
+        transactionSignature,
+        pendingSession.expiresAt
+      );
+
+      console.log(`   ✅ Session balance updated!`);
+    } else {
+      // CREATE new session (use actual blockchain transaction signature)
+      await db.createSession({
+        id: sessionId,
+        userId: pendingSession.userId,
+        userWallet: pendingSession.userWallet,
+        sessionPublicKey: pendingSession.sessionKeypair.publicKey.toBase58(),
+        sessionPrivateKeyEncrypted: pendingSession.encryptedPrivateKey,
+        approvedAmount: pendingSession.approvedAmount,
+        approvalSignature: transactionSignature,
+        expiresAt: pendingSession.expiresAt,
+      });
+
+      console.log(`   ✅ Session activated!`);
+    }
 
     // Clean up pending session
     pendingSessions.delete(sessionId);
-
-    console.log(`   ✅ Session activated!`);
 
     return res.json({
       success: true,
@@ -331,6 +475,181 @@ router.post('/revoke', async (req, res) => {
     console.error('❌ Error revoking session:', error);
     return res.status(500).json({
       error: 'Failed to revoke session',
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/sessions/withdraw
+ * Withdraw credits (partial or full)
+ * If amount specified: partial withdrawal, session stays active with reduced balance
+ * If no amount or amount equals remaining: close session entirely
+ */
+router.post('/withdraw', async (req, res) => {
+  try {
+    const { userWallet, amount } = req.body;
+
+    if (!userWallet) {
+      return res.status(400).json({
+        error: 'Missing userWallet',
+      });
+    }
+
+    console.log(`\n💸 ========================================`);
+    console.log(`💸 WITHDRAW REQUEST`);
+    console.log(`💸 ========================================`);
+    console.log(`   Wallet: ${userWallet}`);
+    console.log(`   Requested: ${amount !== undefined ? amount + ' USDC' : 'ALL'}`);
+
+    // Get active session
+    const session = await db.getActiveSession(userWallet);
+
+    if (!session) {
+      console.log(`   ❌ No active session found`);
+      return res.status(404).json({
+        error: 'No active session found',
+      });
+    }
+
+    console.log(`\n📊 DATABASE VALUES:`);
+    console.log(`   session.approved_amount: ${session.approved_amount}`);
+    console.log(`   session.spent_amount: ${session.spent_amount}`);
+    console.log(`   session.remaining_amount: ${session.remaining_amount}`);
+
+    // Calculate remaining amount
+    const approvedAmount = parseFloat(session.approved_amount);
+    const spentAmount = parseFloat(session.spent_amount);
+    const storedRemaining = parseFloat(session.remaining_amount);
+    const calculatedRemaining = approvedAmount - spentAmount;
+
+    console.log(`\n🔢 PARSED VALUES:`);
+    console.log(`   approvedAmount: ${approvedAmount}`);
+    console.log(`   spentAmount: ${spentAmount}`);
+    console.log(`   storedRemaining: ${storedRemaining}`);
+    console.log(`   calculatedRemaining: ${calculatedRemaining}`);
+
+    // Check for inconsistency
+    const diff = Math.abs(storedRemaining - calculatedRemaining);
+    if (diff > 0.01) {
+      console.log(`\n⚠️  DB INCONSISTENCY DETECTED!`);
+      console.log(`   Difference: ${diff.toFixed(6)}`);
+    }
+
+    // Use calculated remaining for accuracy
+    const remainingAmount = calculatedRemaining;
+
+    if (remainingAmount <= 0) {
+      console.log(`   ❌ No remaining credits (${remainingAmount})`);
+      return res.status(400).json({
+        error: 'No remaining credits to withdraw',
+      });
+    }
+
+    // Determine withdrawal amount and round to 2 decimal places to avoid floating point issues
+    const withdrawAmount = amount !== undefined ? Math.round(parseFloat(amount) * 100) / 100 : Math.round(remainingAmount * 100) / 100;
+    const roundedRemainingAmount = Math.round(remainingAmount * 100) / 100;
+
+    console.log(`\n💰 WITHDRAWAL CALCULATION:`);
+    console.log(`   withdrawAmount (rounded): ${withdrawAmount}`);
+    console.log(`   roundedRemainingAmount: ${roundedRemainingAmount}`);
+
+    // Validate withdrawal amount
+    if (withdrawAmount <= 0) {
+      return res.status(400).json({
+        error: 'Withdrawal amount must be greater than 0',
+      });
+    }
+
+    if (withdrawAmount > roundedRemainingAmount) {
+      return res.status(400).json({
+        error: `Insufficient balance. You have ${roundedRemainingAmount.toFixed(2)} USDC remaining`,
+      });
+    }
+
+    // If withdrawing all remaining credits, revoke the session
+    if (withdrawAmount >= roundedRemainingAmount) {
+      console.log(`\n💰 FULL WITHDRAWAL (CLOSING SESSION):`);
+      console.log(`   Withdrawing entire balance: ${roundedRemainingAmount} USDC`);
+      console.log(`   Revoking session ID: ${session.id}`);
+
+      const success = await db.revokeSession(session.id);
+
+      if (!success) {
+        console.log(`   ❌ Failed to revoke session`);
+        return res.status(500).json({
+          error: 'Failed to close session',
+        });
+      }
+
+      console.log(`\n✅ SESSION CLOSED`);
+      console.log(`   💰 ${roundedRemainingAmount} USDC withdrawn`);
+      console.log(`   🔒 Session revoked`);
+      console.log(`💸 ========================================\n`);
+
+      return res.json({
+        success: true,
+        message: 'All credits withdrawn successfully',
+        withdrawnAmount: roundedRemainingAmount,
+        sessionId: session.id,
+        sessionClosed: true,
+      });
+    }
+
+    // Partial withdrawal: reduce approved amount, recalculate remaining
+    const newApprovedAmount = Math.round((approvedAmount - withdrawAmount) * 100) / 100;
+    const newRemainingAmount = Math.round((newApprovedAmount - spentAmount) * 100) / 100; // Remaining = approved - spent
+
+    // Safety check: ensure new amounts are valid
+    if (newApprovedAmount < 0 || newRemainingAmount < 0) {
+      console.error(`   ❌ Invalid calculation detected:`);
+      console.error(`      withdrawAmount: ${withdrawAmount}`);
+      console.error(`      approvedAmount: ${approvedAmount}`);
+      console.error(`      spentAmount: ${spentAmount}`);
+      console.error(`      newApprovedAmount: ${newApprovedAmount}`);
+      console.error(`      newRemainingAmount: ${newRemainingAmount}`);
+      return res.status(500).json({
+        error: 'Internal calculation error - please contact support',
+      });
+    }
+
+    console.log(`\n💰 PARTIAL WITHDRAWAL:`);
+    console.log(`   Withdrawing: ${withdrawAmount} USDC`);
+    console.log(`   Old approved: ${approvedAmount} -> New approved: ${newApprovedAmount}`);
+    console.log(`   Spent stays: ${spentAmount} (unchanged)`);
+    console.log(`   Old remaining: ${roundedRemainingAmount} -> New remaining: ${newRemainingAmount}`);
+    console.log(`\n📝 UPDATING DATABASE:`);
+    console.log(`   approved_amount: ${approvedAmount} -> ${newApprovedAmount}`);
+    console.log(`   spent_amount: ${spentAmount} (unchanged)`);
+    console.log(`   remaining_amount: ${storedRemaining} -> ${newRemainingAmount}`);
+
+    // Update session balance using direct database query
+    // We use the existing updateSessionBalance but keep the same signature and expiry
+    await db.updateSessionBalance(
+      session.id,
+      newApprovedAmount,
+      newRemainingAmount,
+      session.approval_signature,
+      new Date(session.expires_at)
+    );
+
+    console.log(`\n✅ DATABASE UPDATE COMPLETE`);
+    console.log(`   💰 ${withdrawAmount} USDC withdrawn`);
+    console.log(`   📊 New balance: ${newRemainingAmount} USDC`);
+    console.log(`💸 ========================================\n`);
+
+    return res.json({
+      success: true,
+      message: 'Partial withdrawal successful',
+      withdrawnAmount: withdrawAmount,
+      sessionId: session.id,
+      sessionClosed: false,
+      newRemainingBalance: newRemainingAmount,
+    });
+  } catch (error: any) {
+    console.error('❌ Error withdrawing credits:', error);
+    return res.status(500).json({
+      error: 'Failed to withdraw credits',
       message: error.message,
     });
   }

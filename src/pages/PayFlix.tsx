@@ -72,7 +72,7 @@ export default function PayFlix() {
               </svg>
             </div>
             <h3 className="text-xl font-semibold mb-2">Direct Payments</h3>
-            <p className="text-sm text-neutral-400">No middlemen. Earn 97.65% of what your audience pays.</p>
+            <p className="text-sm text-neutral-400">No middlemen. Earn 97.15% of what your audience pays.</p>
           </motion.div>
 
           <motion.div
@@ -158,7 +158,7 @@ export default function PayFlix() {
               <h3 className="text-2xl font-semibold">Fair Revenue Split</h3>
             </div>
             <p className="text-neutral-400 leading-relaxed">
-              Creators keep 97.65% of every payment. Only 2.35% platform fee - far better than the 30-55% taken by traditional platforms.
+              Creators keep 97.15% of every payment. Only 2.85% platform fee - far better than the 30-55% taken by traditional platforms.
             </p>
           </motion.div>
 

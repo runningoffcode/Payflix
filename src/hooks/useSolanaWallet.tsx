@@ -1,9 +1,8 @@
-import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
 import {
   PublicKey,
   Transaction,
-  SystemProgram,
+  Connection,
   LAMPORTS_PER_SOL
 } from '@solana/web3.js';
 import {
@@ -11,30 +10,47 @@ import {
   createTransferInstruction,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
+import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
 
 /**
  * Custom hook for Solana wallet operations
- * Wraps the wallet adapter with convenient methods
+ * Wraps Privy with convenient methods for Solana operations
  */
 export function useSolanaWallet() {
-  const {
-    publicKey,
-    connected,
-    connecting,
-    disconnect,
-    signTransaction,
-    signAllTransactions,
-    wallet,
-  } = useWallet();
+  const { user: privyUser, login, logout, authenticated, ready } = usePrivy();
+  const { wallets } = useWallets();
+  // Using Helius RPC for better performance
+  const connection = new Connection('https://devnet.helius-rpc.com/?api-key=84db05e3-e9ad-479e-923e-80be54938a18', 'confirmed');
 
-  const { connection } = useConnection();
-  const { setVisible } = useWalletModal();
+  // Get Solana wallet from Privy (connected wallet OR embedded wallet)
+  const getWalletAddress = (): string | null => {
+    if (!privyUser) return null;
+
+    const solanaWallets = wallets?.filter((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana');
+    if (solanaWallets && solanaWallets.length > 0) {
+      return solanaWallets[0].address;
+    }
+
+    const embeddedWallet = privyUser.linkedAccounts?.find(
+      (acc: any) => acc.type === 'wallet' && acc.chainType === 'solana'
+    );
+    if (embeddedWallet) {
+      return embeddedWallet.address;
+    }
+
+    return null;
+  };
+
+  const walletAddress = getWalletAddress();
+  const publicKey = walletAddress ? new PublicKey(walletAddress) : null;
+  const connected = authenticated && !!walletAddress;
+  const connecting = !ready;
 
   /**
-   * Connect wallet (opens modal)
+   * Connect wallet (opens Privy modal)
    */
   const connect = () => {
-    setVisible(true);
+    login();
   };
 
   /**
@@ -45,13 +61,16 @@ export function useSolanaWallet() {
   };
 
   /**
-   * Get SOL balance
+   * Get SOL balance (queued to prevent rate limiting)
    */
   const getSolBalance = async (): Promise<number> => {
     if (!publicKey) return 0;
 
     try {
-      const balance = await connection.getBalance(publicKey);
+      const balance = await queueRPCRequest(
+        () => connection.getBalance(publicKey),
+        RPC_PRIORITY.MEDIUM
+      );
       return balance / LAMPORTS_PER_SOL;
     } catch (error) {
       console.error('Error getting SOL balance:', error);
@@ -127,16 +146,15 @@ export function useSolanaWallet() {
    * Sign a message for authentication
    */
   const signMessage = async (message: string): Promise<string> => {
-    if (!publicKey || !wallet?.adapter.signMessage) {
-      throw new Error('Wallet does not support message signing');
+    if (!walletAddress) {
+      throw new Error('Wallet not connected');
     }
 
     try {
-      const encodedMessage = new TextEncoder().encode(message);
-      const signature = await wallet.adapter.signMessage(encodedMessage);
-
-      // Convert to base58
-      return btoa(String.fromCharCode(...signature));
+      // With Privy, message signing is handled through the wallet provider
+      // This is a simplified version - for production, use Privy's signMessage
+      console.warn('Message signing with Privy requires additional setup');
+      throw new Error('Message signing not yet implemented with Privy');
     } catch (error) {
       console.error('Error signing message:', error);
       throw error;
@@ -163,11 +181,11 @@ export function useSolanaWallet() {
     address: getAddress(),
     connected,
     connecting,
-    walletName: wallet?.adapter.name,
+    walletName: 'Privy',
 
     // Actions
     connect,
-    disconnect,
+    disconnect: logout,
 
     // Balance
     getSolBalance,
@@ -179,7 +197,8 @@ export function useSolanaWallet() {
 
     // Low-level
     connection,
-    signTransaction,
-    signAllTransactions,
+    // Note: signTransaction and signAllTransactions require Privy wallet provider integration
+    signTransaction: undefined,
+    signAllTransactions: undefined,
   };
 }

@@ -373,6 +373,7 @@ class PostgresDatabase {
       creatorWallet: row.creator_wallet,
       title: row.title,
       description: row.description,
+      category: row.category || 'Entertainment',
       priceUsdc: parseFloat(row.price_usdc),
       thumbnailUrl: row.thumbnail_url,
       videoUrl: row.video_url,
@@ -380,6 +381,7 @@ class PostgresDatabase {
       duration: row.duration,
       views: row.views,
       earnings: parseFloat(row.earnings),
+      archived: row.archived || false,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

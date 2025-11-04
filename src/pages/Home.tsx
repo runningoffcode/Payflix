@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet } from '../hooks/useWallet';
 import WalletConnectButton from '../components/WalletConnectButton';
+import UsdcIcon from '../components/icons/UsdcIcon';
 
 interface Video {
   id: string;
@@ -10,7 +11,10 @@ interface Video {
   duration: number;
   views: number;
   priceUsdc: number;
+  category: string;
   creatorWallet: string;
+  creatorName: string;
+  creatorProfilePicture: string | null;
   createdAt: string;
 }
 
@@ -18,7 +22,8 @@ export default function Home() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const { connected } = useWallet();
+  const [ownedVideoIds, setOwnedVideoIds] = useState<string[]>([]);
+  const { connected, publicKey } = useWallet();
 
   const categories = ['All', 'Entertainment', 'Gaming', 'Music', 'Education', 'Technology', 'Lifestyle'];
 
@@ -27,6 +32,15 @@ export default function Home() {
     const interval = setInterval(fetchVideos, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (connected && publicKey) {
+      // Fetch immediately for fast loading
+      fetchOwnedVideoIds();
+    } else {
+      setOwnedVideoIds([]);
+    }
+  }, [connected, publicKey]);
 
   const fetchVideos = async () => {
     try {
@@ -38,6 +52,26 @@ export default function Home() {
       console.error('Error fetching videos:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOwnedVideoIds = async () => {
+    if (!publicKey) return;
+
+    try {
+      const response = await fetch('/api/users/owned-video-ids', {
+        headers: {
+          'x-wallet-address': publicKey.toBase58(),
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setOwnedVideoIds(data.videoIds || []);
+        console.log('✅ Loaded owned video IDs:', data.videoIds);
+      }
+    } catch (error) {
+      console.error('Error fetching owned video IDs:', error);
     }
   };
 
@@ -65,77 +99,6 @@ export default function Home() {
     return `${Math.floor(diffInSeconds / 604800)} weeks ago`;
   };
 
-  // Mock video data if no videos from API
-  const mockVideos = [
-    {
-      id: '1',
-      title: 'Amazing Web3 Tutorial for Beginners',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=800&h=450&fit=crop',
-      duration: 754,
-      views: 1200000,
-      priceUsdc: 0.01,
-      creatorWallet: 'Sample',
-      creatorName: 'Creator Name',
-      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '2',
-      title: 'How to Build Your First NFT Platform',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=800&h=450&fit=crop',
-      duration: 495,
-      views: 850000,
-      priceUsdc: 0.01,
-      creatorWallet: 'Sample',
-      creatorName: 'Tech Creator',
-      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '3',
-      title: 'Cryptocurrency Trading Strategies 2024',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=800&h=450&fit=crop',
-      duration: 942,
-      views: 2500000,
-      priceUsdc: 0.01,
-      creatorWallet: 'Sample',
-      creatorName: 'Finance Guru',
-      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '4',
-      title: 'Music Production in the Metaverse',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1551033406-611cf9a28f67?w=800&h=450&fit=crop',
-      duration: 1208,
-      views: 500000,
-      priceUsdc: 0.01,
-      creatorWallet: 'Sample',
-      creatorName: 'Music Producer',
-      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '5',
-      title: 'Future of Decentralized Gaming',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&h=450&fit=crop',
-      duration: 629,
-      views: 3100000,
-      priceUsdc: 0.01,
-      creatorWallet: 'Sample',
-      creatorName: 'Gaming Pro',
-      createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '6',
-      title: 'Smart Contracts Explained Simply',
-      thumbnailUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=450&fit=crop',
-      duration: 1135,
-      views: 1800000,
-      priceUsdc: 0.01,
-      creatorWallet: 'Sample',
-      creatorName: 'Blockchain Dev',
-      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-  ];
-
-  const displayVideos = videos.length > 0 ? videos : mockVideos;
 
   return (
     <main className="flex flex-col overflow-y-auto h-full relative">
@@ -195,7 +158,7 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
-              <Link to="/creator-studio" className="w-9 h-9 flex items-center justify-center rounded-lg bg-neutral-800/50 border border-neutral-700/50 text-neutral-200 hover:bg-neutral-700/50 transition-colors">
+              <Link to="/creator-dashboard" className="w-9 h-9 flex items-center justify-center rounded-lg bg-neutral-800/50 border border-neutral-700/50 text-neutral-200 hover:bg-neutral-700/50 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
@@ -230,38 +193,102 @@ export default function Home() {
             <div className="flex items-center justify-center py-20">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent"></div>
             </div>
+          ) : videos.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center mb-6">
+                <svg className="w-12 h-12 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-neutral-200 mb-2">No videos yet</h3>
+              <p className="text-neutral-400 mb-6 max-w-md">
+                Be the first creator to upload content to the platform!
+              </p>
+              <Link
+                to="/creator-dashboard"
+                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg font-medium text-white hover:from-purple-600 hover:to-pink-600 transition-all"
+              >
+                Start Creating
+              </Link>
+            </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-              {displayVideos.map((video: any) => (
-                <div key={video.id} className="group cursor-pointer">
-                  <Link to={`/video/${video.id}`}>
-                    <div className="relative mb-3 rounded-xl overflow-hidden bg-neutral-800/50 aspect-video">
-                      <img
-                        src={video.thumbnailUrl}
-                        alt={video.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                      <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-0.5 rounded text-xs font-medium">
-                        {formatDuration(video.duration)}
-                      </div>
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="flex flex-col items-center gap-2 px-4 py-2 bg-white/90 hover:bg-white text-neutral-900 rounded-lg font-medium text-sm transition-colors">
-                          <div className="flex items-center gap-2">
-                            <svg width="20" height="20" viewBox="0 0 533 530" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path opacity="0.7" d="M520.858 245.866C536.403 253.587 536.403 275.762 520.858 283.482L30.4678 527.04C11.1866 536.616 -8.30134 514.434 3.67803 496.547L151.138 276.36C155.874 269.289 155.874 260.06 151.138 252.989L3.67801 32.802C-8.30136 14.9145 11.1866 -7.26763 30.4678 2.30859L520.858 245.866Z" fill="#171717"/>
-                            </svg>
-                            <span>Unlock</span>
+              {videos
+                .filter((video: any) => selectedCategory === 'All' || video.category === selectedCategory)
+                .map((video: any) => {
+                const isOwned = ownedVideoIds.includes(video.id);
+                return (
+                  <div key={video.id} className="group cursor-pointer">
+                    <Link to={`/video/${video.id}`}>
+                      <div className="relative mb-3 rounded-xl overflow-hidden bg-neutral-800/50 aspect-video">
+                        {video.thumbnailUrl && video.thumbnailUrl.startsWith('/api/') ? (
+                          <img
+                            src={video.thumbnailUrl}
+                            alt={video.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const parent = target.parentElement;
+                              if (parent) {
+                                parent.innerHTML = '<div class="flex items-center justify-center h-full bg-white/5"><span class="text-6xl">🎬</span></div>';
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-full bg-white/5">
+                            <span className="text-6xl">🎬</span>
                           </div>
-                          <span className="text-xs text-neutral-600">{video.priceUsdc.toFixed(2)} USDC</span>
-                        </button>
+                        )}
+                        {isOwned && (
+                          <div className="absolute top-2 left-2 bg-gradient-to-r from-green-500 to-emerald-600 px-3 py-1 rounded-full text-xs font-bold text-white shadow-lg">
+                            OWNED
+                          </div>
+                        )}
+                        <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-0.5 rounded text-xs font-medium">
+                          {formatDuration(video.duration)}
+                        </div>
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button className={`flex flex-col items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                            isOwned
+                              ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white'
+                              : 'bg-white/90 hover:bg-white text-neutral-900'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <svg width="20" height="20" viewBox="0 0 533 530" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path opacity="0.7" d="M520.858 245.866C536.403 253.587 536.403 275.762 520.858 283.482L30.4678 527.04C11.1866 536.616 -8.30134 514.434 3.67803 496.547L151.138 276.36C155.874 269.289 155.874 260.06 151.138 252.989L3.67801 32.802C-8.30136 14.9145 11.1866 -7.26763 30.4678 2.30859L520.858 245.866Z" fill={isOwned ? '#ffffff' : '#171717'}/>
+                              </svg>
+                              <span>{isOwned ? 'Play' : 'Unlock'}</span>
+                            </div>
+                            {!isOwned && (
+                              <span className="text-xs text-neutral-600 flex items-center gap-1">
+                                {video.priceUsdc.toFixed(2)}
+                                <UsdcIcon size={12} />
+                              </span>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    </div>
                     <div className="flex gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0"></div>
+                      {video.creatorProfilePicture ? (
+                        <img
+                          src={video.creatorProfilePicture}
+                          alt={video.creatorName}
+                          className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0"></div>
+                      )}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-sm line-clamp-2 mb-1 group-hover:text-purple-400 transition-colors">
-                          {video.title}
-                        </h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-medium text-sm line-clamp-2 group-hover:text-purple-400 transition-colors flex-1">
+                            {video.title}
+                          </h3>
+                          <div className="flex items-center gap-1 text-xs font-medium text-purple-400 flex-shrink-0">
+                            {video.priceUsdc.toFixed(2)}
+                            <UsdcIcon size={14} />
+                          </div>
+                        </div>
                         <p className="text-xs text-neutral-400">{video.creatorName || 'Creator'}</p>
                         <p className="text-xs text-neutral-400">
                           {formatViews(video.views)} views • {formatTimeAgo(video.createdAt)}
@@ -270,7 +297,8 @@ export default function Home() {
                     </div>
                   </Link>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

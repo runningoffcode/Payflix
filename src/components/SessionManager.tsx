@@ -4,8 +4,8 @@
  * Automatically prompts users to create sessions for seamless payments
  */
 
-import { useEffect, useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useEffect, useState, useRef } from 'react';
+import { useWallet } from '../hooks/useWallet';
 import SessionCreationModal from './SessionCreationModal';
 
 export default function SessionManager() {
@@ -13,45 +13,57 @@ export default function SessionManager() {
   const [showModal, setShowModal] = useState(false);
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const [checking, setChecking] = useState(false);
+  const lastCheckedWalletRef = useRef<string | null>(null);
 
   // Check for active session when wallet connects
   useEffect(() => {
     const checkSession = async () => {
       if (!connected || !publicKey) {
         setHasActiveSession(false);
+        lastCheckedWalletRef.current = null;
         return;
       }
 
-      // Don't check multiple times
-      if (checking) return;
+      const currentWallet = publicKey.toBase58();
+
+      // Don't check multiple times for the same wallet
+      if (checking || lastCheckedWalletRef.current === currentWallet) {
+        return;
+      }
 
       try {
         setChecking(true);
-        console.log('🔍 Checking for active session...');
+        lastCheckedWalletRef.current = currentWallet;
+        console.log('🔍 Checking for existing X402 session...');
 
         const response = await fetch(
-          `/api/sessions/active?userWallet=${publicKey.toBase58()}`
+          `/api/payments/session/balance?userWallet=${currentWallet}`
         );
 
         if (response.ok) {
           const data = await response.json();
 
-          if (data.hasActiveSession) {
-            console.log('✅ Active session found');
-            console.log(`   Remaining: ${data.session.remaining_amount} USDC`);
+          if (data.hasSession) {
+            console.log('✅ Found existing session!');
+            console.log(`   Balance: $${data.remainingAmount} USDC`);
+            console.log(`   Total approved: $${data.approvedAmount} USDC`);
+            console.log(`   Spent: $${data.spentAmount} USDC`);
+            console.log('🎬 Seamless payments enabled - no popups needed!');
             setHasActiveSession(true);
           } else {
-            console.log('ℹ️  No active session found');
+            console.log('ℹ️  No session found - will prompt for deposit');
             setHasActiveSession(false);
 
-            // Show modal after a brief delay to allow wallet connection to complete
+            // Show deposit modal after a brief delay
+            // This is the ONE-TIME popup that enables seamless payments
             setTimeout(() => {
               setShowModal(true);
             }, 1000);
           }
         }
       } catch (error) {
-        console.error('Error checking session:', error);
+        console.error('❌ Error checking session:', error);
+        lastCheckedWalletRef.current = null; // Allow retry on error
       } finally {
         setChecking(false);
       }

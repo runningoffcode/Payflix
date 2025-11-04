@@ -26,6 +26,12 @@ export function requireX402Payment(
 ) {
   return async (req: X402ProtectedRequest, res: Response, next: NextFunction) => {
     try {
+      // Skip payment check if user already has access (set by checkExistingPayment middleware)
+      if (req.payment && req.payment.verified) {
+        console.log('✅ User already has verified access, skipping X402 payment check');
+        return next();
+      }
+
       // Check if X-PAYMENT header is present
       const paymentHeader = req.headers['x-payment'] as string;
 
@@ -163,7 +169,7 @@ async function recordPayment(
   }
 
   // Calculate platform fee
-  const platformFeePercentage = 2.35;
+  const platformFeePercentage = 2.85;
   const platformAmount = amount * (platformFeePercentage / 100);
   const creatorAmount = amount - platformAmount;
 
@@ -206,6 +212,23 @@ export function checkExistingPayment() {
         return next();
       }
 
+      // Check for video access first (grants access for purchased videos)
+      const hasAccess = await db.hasVideoAccess(user.id, videoId);
+      if (hasAccess) {
+        // User has video access - grant access without new payment
+        const video = await db.getVideoById(videoId);
+        req.payment = {
+          verified: true,
+          signature: 'video-access-granted',
+          amount: video?.priceUsdc || 0,
+          recipient: video?.creatorWallet || '',
+        };
+
+        console.log(`✅ Video access found for user ${userWallet} and video ${videoId}`);
+        return next();
+      }
+
+      // Check for existing payment as fallback
       const existingPayment = await db.getUserPaymentForVideo(user.id, videoId);
 
       if (existingPayment && existingPayment.status === 'verified') {
@@ -221,7 +244,7 @@ export function checkExistingPayment() {
         return next();
       }
 
-      // No existing payment - continue to payment middleware
+      // No existing payment or access - continue to payment middleware
       next();
     } catch (error) {
       console.error('Error checking existing payment:', error);

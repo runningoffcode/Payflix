@@ -4,7 +4,7 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import ffmpeg from 'fluent-ffmpeg';
 import config from '../config';
-import { arweaveService } from './arweave.service';
+import { r2StorageService } from './r2-storage.service';
 
 /**
  * Video Upload Service
@@ -54,7 +54,7 @@ export const videoUpload = multer({
  * Process uploaded video
  * - Extract metadata (duration, resolution, etc.)
  * - Generate thumbnail
- * - Upload to Arweave
+ * - Upload to R2 (Cloudflare R2)
  */
 export async function processVideo(
   filePath: string,
@@ -68,7 +68,8 @@ export async function processVideo(
   duration: number;
   thumbnailUrl: string;
   videoUrl: string;
-  arweaveId: string;
+  storageId: string;
+  fileSize: number;
 }> {
   try {
     console.log('📹 Processing video:', metadata.title);
@@ -79,14 +80,14 @@ export async function processVideo(
     // Generate thumbnail
     const thumbnailPath = await generateThumbnail(filePath);
 
-    // Upload thumbnail to Arweave
-    const thumbnail = await arweaveService.uploadThumbnail(
+    // Upload thumbnail to R2
+    const thumbnail = await r2StorageService.uploadThumbnail(
       thumbnailPath,
       metadata.title
     );
 
-    // Upload video to Arweave
-    const video = await arweaveService.uploadVideo(filePath, metadata);
+    // Upload video to R2
+    const video = await r2StorageService.uploadVideo(filePath, metadata);
 
     // Clean up temporary files
     fs.unlinkSync(filePath);
@@ -98,7 +99,8 @@ export async function processVideo(
       duration: Math.floor(videoInfo.duration),
       thumbnailUrl: thumbnail.url,
       videoUrl: video.url,
-      arweaveId: video.transactionId,
+      storageId: video.fileId,
+      fileSize: video.size,
     };
   } catch (error) {
     console.error('❌ Video processing failed:', error);

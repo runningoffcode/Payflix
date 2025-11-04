@@ -132,9 +132,6 @@ async function processMockPayment(
   transactionId: string,
   amount: number
 ): Promise<{ success: boolean; error?: string; transaction_hash?: string }> {
-  // Simulate payment processing delay
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
   // Mock payment success (90% success rate for simulation)
   const isSuccess = Math.random() > 0.1;
 

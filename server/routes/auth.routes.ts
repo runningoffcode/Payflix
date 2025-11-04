@@ -50,14 +50,27 @@ router.post('/login', async (req: Request, res: Response) => {
     // In production, verify the wallet signature here
     // For now, we'll skip signature verification for simplicity
 
-    // Get or create user
+    // Get or create user (all users are creators by default)
     let user = await db.getUserByWallet(walletAddress);
 
     if (!user) {
-      user = await db.createUser({
-        walletAddress,
-        isCreator: false,
-      });
+      console.log('🆕 User not found, creating new user...');
+      try {
+        user = await db.createUser({
+          walletAddress,
+          isCreator: true, // Everyone is a creator by default
+        });
+        console.log('✅ User created successfully:', user.id);
+      } catch (error) {
+        console.error('❌ Error creating user:', error);
+        return res.status(500).json({ error: 'Failed to create user account' });
+      }
+    } else {
+      console.log('✅ Existing user found:', user.id);
+      if (!user.isCreator) {
+        // Upgrade existing non-creator users to creators automatically
+        user = await db.updateUser(user.id, { isCreator: true }) || user;
+      }
     }
 
     // Generate tokens

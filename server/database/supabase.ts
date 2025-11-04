@@ -9,11 +9,25 @@ class SupabaseDatabase {
   private supabase: SupabaseClient;
 
   constructor() {
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+    // Backend uses SUPABASE_SERVICE_KEY (not VITE_ prefixed) for full database access
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Missing Supabase credentials in environment variables');
+    }
+
+    // Verify we're using service_role key (not anon)
+    try {
+      const payload = JSON.parse(Buffer.from(supabaseKey.split('.')[1], 'base64').toString());
+      if (payload.role !== 'service_role') {
+        console.error('⚠️  WARNING: Backend is using', payload.role, 'key instead of service_role key!');
+        console.error('   This will cause permission errors. Check your .env file.');
+      } else {
+        console.log('✅ Using service_role key for backend database operations');
+      }
+    } catch (e) {
+      console.warn('Could not verify Supabase key role');
     }
 
     this.supabase = createClient(supabaseUrl, supabaseKey);
@@ -22,10 +36,14 @@ class SupabaseDatabase {
 
   // Users
   async createUser(user: Omit<User, 'id' | 'createdAt'>): Promise<User> {
+    // Generate TEXT-format ID (after migration from UUID)
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
     const { data, error } = await this.supabase
       .from('users')
       .insert([
         {
+          id: userId,
           wallet_address: user.walletAddress,
           username: user.username,
           email: user.email,
@@ -60,19 +78,29 @@ class SupabaseDatabase {
   }
 
   async getUserByWallet(walletAddress: string): Promise<User | null> {
+    console.log(`🔍 getUserByWallet called with: "${walletAddress}"`);
+
     const { data, error } = await this.supabase
       .from('users')
       .select('*')
       .ilike('wallet_address', walletAddress)
       .single();
 
+    console.log(`   Query result - data:`, data);
+    console.log(`   Query result - error:`, error);
+
     if (error) {
-      if (error.code === 'PGRST116') return null; // Not found
-      console.error('Error fetching user by wallet:', error);
+      if (error.code === 'PGRST116') {
+        console.log(`   ❌ User not found (PGRST116)`);
+        return null; // Not found
+      }
+      console.error('❌ Error fetching user by wallet:', error);
       return null;
     }
 
-    return this.mapUserFromDb(data);
+    const mappedUser = this.mapUserFromDb(data);
+    console.log(`   ✅ Mapped user:`, mappedUser);
+    return mappedUser;
   }
 
   async getUserByUsername(username: string): Promise<User | null> {
@@ -96,6 +124,7 @@ class SupabaseDatabase {
     if (updates.username !== undefined) dbUpdates.username = updates.username;
     if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.isCreator !== undefined) dbUpdates.is_creator = updates.isCreator;
+    if (updates.profilePictureUrl !== undefined) dbUpdates.profile_image_url = updates.profilePictureUrl;
 
     const { data, error } = await this.supabase
       .from('users')
@@ -114,7 +143,7 @@ class SupabaseDatabase {
 
   // Videos
   async createVideo(video: Video): Promise<Video> {
-    const { data, error } = await this.supabase
+    const { data, error} = await this.supabase
       .from('videos')
       .insert([
         {
@@ -123,6 +152,7 @@ class SupabaseDatabase {
           creator_wallet: video.creatorWallet,
           title: video.title,
           description: video.description,
+          category: video.category,
           price_usdc: video.priceUsdc,
           thumbnail_url: video.thumbnailUrl,
           video_url: video.videoUrl,
@@ -130,6 +160,7 @@ class SupabaseDatabase {
           duration: video.duration,
           views: video.views,
           earnings: video.earnings,
+          archived: video.archived || false, // Default to not archived
         },
       ])
       .select()
@@ -160,9 +191,12 @@ class SupabaseDatabase {
   }
 
   async getAllVideos(): Promise<Video[]> {
+    // 🌐 Web3 principle: Only show non-archived videos in public listings
+    // Archived videos remain accessible to buyers who purchased them
     const { data, error } = await this.supabase
       .from('videos')
       .select('*')
+      .eq('archived', false) // Filter out archived videos
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -170,7 +204,7 @@ class SupabaseDatabase {
       return [];
     }
 
-    console.log(`📊 Supabase query returned ${data?.length || 0} videos`);
+    console.log(`📊 Supabase query returned ${data?.length || 0} non-archived videos`);
     if (data && data.length > 0) {
       console.log('   Sample video:', data[0].title, '- Price:', data[0].price_usdc);
     }
@@ -197,6 +231,7 @@ class SupabaseDatabase {
     const dbUpdates: any = { updated_at: new Date().toISOString() };
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.category !== undefined) dbUpdates.category = updates.category;
     if (updates.priceUsdc !== undefined) dbUpdates.price_usdc = updates.priceUsdc;
     if (updates.thumbnailUrl !== undefined) dbUpdates.thumbnail_url = updates.thumbnailUrl;
     if (updates.videoUrl !== undefined) dbUpdates.video_url = updates.videoUrl;
@@ -204,6 +239,7 @@ class SupabaseDatabase {
     if (updates.duration !== undefined) dbUpdates.duration = updates.duration;
     if (updates.views !== undefined) dbUpdates.views = updates.views;
     if (updates.earnings !== undefined) dbUpdates.earnings = updates.earnings;
+    if (updates.archived !== undefined) dbUpdates.archived = updates.archived;
 
     const { data, error } = await this.supabase
       .from('videos')
@@ -221,13 +257,55 @@ class SupabaseDatabase {
   }
 
   async deleteVideo(id: string): Promise<boolean> {
-    const { error } = await this.supabase.from('videos').delete().eq('id', id);
+    console.log(`🗄️  Database: Deleting video ${id} from Supabase with cascade...`);
+
+    // Step 1: Delete related payments (to avoid foreign key constraint)
+    console.log('   Deleting related payments...');
+    const { error: paymentsError } = await this.supabase
+      .from('payments')
+      .delete()
+      .eq('video_id', id);
+
+    if (paymentsError) {
+      console.error('⚠️  Error deleting payments:', paymentsError.message);
+      // Continue anyway - payments might not exist
+    } else {
+      console.log('   ✅ Payments deleted');
+    }
+
+    // Step 2: Delete related video_access records
+    console.log('   Deleting related video_access records...');
+    const { error: accessError } = await this.supabase
+      .from('video_access')
+      .delete()
+      .eq('video_id', id);
+
+    if (accessError) {
+      console.error('⚠️  Error deleting video_access:', accessError.message);
+      // Continue anyway - access records might not exist
+    } else {
+      console.log('   ✅ Video access records deleted');
+    }
+
+    // Step 3: Delete the video itself
+    console.log('   Deleting video record...');
+    const { data, error, count } = await this.supabase
+      .from('videos')
+      .delete()
+      .eq('id', id)
+      .select();
 
     if (error) {
-      console.error('Error deleting video:', error);
+      console.error('❌ Error deleting video from database:', error);
       return false;
     }
 
+    if (!data || data.length === 0) {
+      console.error(`⚠️  Video ${id} was not found in database - nothing deleted`);
+      return false;
+    }
+
+    console.log(`✅ Database: Video ${id} and all related records deleted successfully (${data.length} row(s) affected)`);
     return true;
   }
 
@@ -403,15 +481,18 @@ class SupabaseDatabase {
       .select('*')
       .eq('user_id', userId)
       .eq('video_id', videoId)
-      .gt('expires_at', new Date().toISOString())
-      .single();
+      .gt('expires_at', new Date().toISOString());
 
     if (error) {
-      if (error.code === 'PGRST116') return false; // Not found
+      console.error('Error checking video access:', error);
       return false;
     }
 
-    return !!data;
+    const hasAccess = data && data.length > 0;
+    if (hasAccess) {
+      console.log(`✅ Video access check: User ${userId} has access to video ${videoId}`);
+    }
+    return hasAccess;
   }
 
   async getVideoAccess(userId: string, videoId: string): Promise<VideoAccess | null> {
@@ -452,6 +533,7 @@ class SupabaseDatabase {
       walletAddress: data.wallet_address,
       username: data.username,
       email: data.email,
+      profilePictureUrl: data.profile_image_url,
       isCreator: data.is_creator,
       createdAt: new Date(data.created_at),
     };
@@ -464,6 +546,7 @@ class SupabaseDatabase {
       creatorWallet: data.creator_wallet,
       title: data.title,
       description: data.description,
+      category: data.category || 'Entertainment',
       priceUsdc: data.price_usdc,
       thumbnailUrl: data.thumbnail_url,
       videoUrl: data.video_url,
@@ -471,6 +554,7 @@ class SupabaseDatabase {
       duration: data.duration,
       views: data.views,
       earnings: data.earnings,
+      archived: data.archived || false, // Default to false if not set
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
     };
@@ -614,6 +698,23 @@ class SupabaseDatabase {
     return true;
   }
 
+  async updateSessionBalance(sessionId: string, newApprovedAmount: number, newRemainingAmount: number, approvalSignature: string, expiresAt: Date): Promise<void> {
+    const { error } = await this.supabase
+      .from('sessions')
+      .update({
+        approved_amount: newApprovedAmount,
+        remaining_amount: newRemainingAmount,
+        approval_signature: approvalSignature,
+        expires_at: expiresAt.toISOString(),
+      })
+      .eq('id', sessionId);
+
+    if (error) {
+      console.error('Error updating session balance:', error);
+      throw new Error(`Failed to update session balance: ${error.message}`);
+    }
+  }
+
   async updateUserProfile(userId: string, updates: { username?: string; profilePicture?: string }): Promise<User | null> {
     const updateData: any = {};
 
@@ -633,6 +734,119 @@ class SupabaseDatabase {
     }
 
     return this.mapUserFromDb(data);
+  }
+
+  // Video Streaming Sessions (for secure streaming with wallet binding)
+  async createStreamingSession(session: {
+    id: string;
+    userWallet: string;
+    videoId: string;
+    sessionToken: string;
+    expiresAt: Date;
+  }): Promise<any> {
+    const { data, error } = await this.supabase
+      .from('video_streaming_sessions')
+      .insert([
+        {
+          id: session.id,
+          user_wallet: session.userWallet,
+          video_id: session.videoId,
+          session_token: session.sessionToken,
+          expires_at: session.expiresAt.toISOString(),
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating streaming session:', error);
+      throw new Error(`Failed to create streaming session: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  async getStreamingSessionByToken(sessionToken: string): Promise<any | null> {
+    const { data, error } = await this.supabase
+      .from('video_streaming_sessions')
+      .select('*')
+      .eq('session_token', sessionToken)
+      .gt('expires_at', new Date().toISOString())
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      console.error('Error fetching streaming session by token:', error);
+      return null;
+    }
+
+    return data;
+  }
+
+  async getActiveStreamingSession(userWallet: string, videoId: string): Promise<any | null> {
+    const { data, error } = await this.supabase
+      .from('video_streaming_sessions')
+      .select('*')
+      .eq('user_wallet', userWallet)
+      .eq('video_id', videoId)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      return null;
+    }
+
+    return data;
+  }
+
+  async updateStreamingSessionAccess(sessionToken: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('video_streaming_sessions')
+      .update({
+        last_accessed_at: new Date().toISOString(),
+      })
+      .eq('session_token', sessionToken);
+
+    if (error) {
+      console.error('Error updating streaming session access time:', error);
+      // Non-critical error, don't throw
+    }
+  }
+
+  async cleanupExpiredStreamingSessions(): Promise<number> {
+    const { data, error } = await this.supabase
+      .from('video_streaming_sessions')
+      .delete()
+      .lt('expires_at', new Date().toISOString())
+      .select();
+
+    if (error) {
+      console.error('Error cleaning up expired streaming sessions:', error);
+      return 0;
+    }
+
+    return data?.length || 0;
+  }
+
+  // Comment Settings
+  async upsertCommentSettings(videoId: string, commentsEnabled: boolean, commentPrice: number): Promise<void> {
+    const { error } = await this.supabase
+      .from('comment_settings')
+      .upsert({
+        video_id: videoId,
+        comments_enabled: commentsEnabled,
+        comment_price: commentPrice,
+      }, {
+        onConflict: 'video_id'
+      });
+
+    if (error) {
+      console.error('Error upserting comment settings:', error);
+      throw new Error(`Failed to update comment settings: ${error.message}`);
+    }
   }
 
   // Initialize with sample data (optional, for development)

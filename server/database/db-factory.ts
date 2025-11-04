@@ -55,7 +55,24 @@ export interface Database {
   getActiveSession(userWallet: string): Promise<any | null>;
   getSessionById(sessionId: string): Promise<any | null>;
   updateSessionSpending(sessionId: string, amount: number): Promise<void>;
+  updateSessionBalance(sessionId: string, newApprovedAmount: number, newRemainingAmount: number, approvalSignature: string, expiresAt: Date): Promise<void>;
   revokeSession(sessionId: string): Promise<boolean>;
+
+  // Video Streaming Sessions (for secure streaming with wallet binding)
+  createStreamingSession(session: {
+    id: string;
+    userWallet: string;
+    videoId: string;
+    sessionToken: string;
+    expiresAt: Date;
+  }): Promise<any>;
+  getStreamingSessionByToken(sessionToken: string): Promise<any | null>;
+  getActiveStreamingSession(userWallet: string, videoId: string): Promise<any | null>;
+  updateStreamingSessionAccess(sessionToken: string): Promise<void>;
+  cleanupExpiredStreamingSessions(): Promise<number>;
+
+  // Comment Settings
+  upsertCommentSettings(videoId: string, commentsEnabled: boolean, commentPrice: number): Promise<void>;
 
   // Optional methods
   initialize?(): Promise<void>;

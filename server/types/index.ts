@@ -16,6 +16,7 @@ export interface Video {
   creatorWallet: string;
   title: string;
   description: string;
+  category: string;
   priceUsdc: number;
   thumbnailUrl: string;
   videoUrl: string;
@@ -23,6 +24,7 @@ export interface Video {
   duration: number;
   views: number;
   earnings: number;
+  archived: boolean; // Hidden from public, but accessible to purchasers
   createdAt: Date;
   updatedAt: Date;
 }

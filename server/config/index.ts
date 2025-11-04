@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 
-dotenv.config();
+// Force override existing environment variables with .env file values
+dotenv.config({ override: true });
 
 export const config = {
   port: parseInt(process.env.PORT || '5001'),
@@ -32,13 +33,13 @@ export const config = {
   },
 
   fees: {
-    platformPercentage: parseFloat(process.env.PLATFORM_FEE_PERCENTAGE || '2.35'),
-    creatorPercentage: parseFloat(process.env.CREATOR_FEE_PERCENTAGE || '97.65'),
+    platformPercentage: parseFloat(process.env.PLATFORM_FEE_PERCENTAGE || '2.85'),
+    creatorPercentage: parseFloat(process.env.CREATOR_FEE_PERCENTAGE || '97.15'),
   },
 
   storage: {
     videoPath: process.env.VIDEO_STORAGE_PATH || './storage/videos',
-    uploadMaxSize: parseInt(process.env.UPLOAD_MAX_SIZE || '500000000'),
+    uploadMaxSize: parseInt(process.env.UPLOAD_MAX_SIZE || '5000000000'),
   },
 
   aiAgent: {
@@ -53,6 +54,14 @@ export const config = {
     gateway: process.env.ARWEAVE_GATEWAY || 'https://arweave.net',
     walletPath: process.env.ARWEAVE_WALLET_PATH || '',
     walletKey: process.env.ARWEAVE_WALLET_KEY || '',
+  },
+
+  r2: {
+    endpoint: process.env.R2_ENDPOINT || '',
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+    bucketName: process.env.R2_BUCKET_NAME || '',
+    publicUrl: process.env.R2_PUBLIC_URL || '',
   },
 };
 

@@ -75,6 +75,7 @@ export class SessionPaymentService {
         const keyData = JSON.parse(process.env.PLATFORM_WALLET_PRIVATE_KEY);
         this.facilitatorWallet = Keypair.fromSecretKey(new Uint8Array(keyData));
         console.log('💳 Session Payment Service initialized');
+        console.log(`   USDC Mint: ${this.usdcMint.toBase58()}`);
         console.log(`   Platform fee wallet: ${this.platformFeeWallet.toBase58()}`);
         console.log(`   Facilitator (gas payer): ${this.facilitatorWallet.publicKey.toBase58()}`);
       } else {
@@ -162,9 +163,9 @@ export class SessionPaymentService {
         };
       }
 
-      // Calculate revenue split (97.65% creator / 2.35% platform)
+      // Calculate revenue split (97.15% creator / 2.85% platform)
       const totalLamports = Math.floor(request.amount * 1_000_000);
-      const platformAmount = Math.floor(totalLamports * 0.0235);
+      const platformAmount = Math.floor(totalLamports * 0.0285);
       const creatorAmount = totalLamports - platformAmount;
 
       console.log(`   Creator gets: ${(creatorAmount / 1_000_000).toFixed(6)} USDC`);
@@ -220,7 +221,7 @@ export class SessionPaymentService {
           userUsdcAccount,           // FROM: User's USDC account
           creatorUsdcAccount,        // TO: Creator's USDC account
           sessionKeypair.publicKey,  // AUTHORITY: Session keypair (delegate)
-          creatorAmount              // 97.65%
+          creatorAmount              // 97.15%
         )
       );
 
@@ -230,7 +231,7 @@ export class SessionPaymentService {
           userUsdcAccount,           // FROM: User's USDC account
           platformUsdcAccount,       // TO: Platform's USDC account
           sessionKeypair.publicKey,  // AUTHORITY: Session keypair (delegate)
-          platformAmount             // 2.35%
+          platformAmount             // 2.85%
         )
       );
 

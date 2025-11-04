@@ -118,7 +118,7 @@ export class CustodialPaymentService {
 
       // Calculate revenue split
       const totalLamports = Math.floor(request.amount * 1_000_000); // USDC has 6 decimals
-      const platformFeePercent = 2.35;
+      const platformFeePercent = 2.85;
       const platformAmount = Math.floor(totalLamports * (platformFeePercent / 100));
       const creatorAmount = totalLamports - platformAmount;
 

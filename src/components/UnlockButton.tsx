@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import UsdcIcon from './icons/UsdcIcon';
 
 interface UnlockButtonProps {
   price: number;
@@ -66,23 +67,16 @@ export default function UnlockButton({ price, onClick, loading = false }: Unlock
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
-            <span className="text-white font-bold text-lg">
-              {loading ? 'Processing...' : `Unlock for $${price.toFixed(2)}`}
+            <span className="text-white font-bold text-lg flex items-center gap-1.5">
+              {loading ? 'Processing...' : (
+                <>
+                  Unlock for ${price.toFixed(2)}
+                  <UsdcIcon size={18} />
+                </>
+              )}
             </span>
           </div>
         </motion.div>
-
-        {/* Hint text */}
-        {!loading && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-neutral-400 text-sm"
-          >
-            Click to pay with USDC and watch instantly
-          </motion.p>
-        )}
       </div>
     </motion.button>
   );

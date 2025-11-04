@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { useWallet, useConnection } from '../hooks/useWallet';
+import { useWalletModal } from '../hooks/useWallet';
 import { PublicKey, Transaction } from '@solana/web3.js';
 import { createTransferInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
 import UnlockButton from '../components/UnlockButton';
+import UsdcIcon from '../components/icons/UsdcIcon';
+import CommentSection from '../components/CommentSection';
 import bs58 from 'bs58';
 
 interface Video {
@@ -13,15 +15,24 @@ interface Video {
   title: string;
   description: string;
   thumbnailUrl: string;
+  videoUrl?: string;
   priceUsdc: number;
   duration: number;
   views: number;
   creatorId: string;
   creatorWallet?: string;
+  commentsEnabled: boolean;
+  commentPrice: number;
+}
+
+interface CreatorProfile {
+  username: string;
+  profile_picture_url: string | null;
+  wallet_address: string;
 }
 
 // USDC Mint Address on Devnet
-const USDC_MINT = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
+const USDC_MINT = new PublicKey(import.meta.env.VITE_USDC_MINT_ADDRESS || '9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2');
 
 export default function VideoPlayer() {
   const { id } = useParams<{ id: string }>();
@@ -32,8 +43,12 @@ export default function VideoPlayer() {
   const [video, setVideo] = useState<Video | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
   const [paying, setPaying] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [videoStreamUrl, setVideoStreamUrl] = useState<string | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [creatorProfile, setCreatorProfile] = useState<CreatorProfile | null>(null);
 
   useEffect(() => {
     fetchVideo();
@@ -42,8 +57,18 @@ export default function VideoPlayer() {
   useEffect(() => {
     if (connected && publicKey && id) {
       checkAccess();
+    } else {
+      // Not connected or missing data - stop checking
+      setCheckingAccess(false);
     }
   }, [connected, publicKey, id]);
+
+  // Auto-fetch video stream URL when access is granted
+  useEffect(() => {
+    if (hasAccess && !videoStreamUrl) {
+      fetchVideoStreamUrl();
+    }
+  }, [hasAccess]);
 
   const fetchVideo = async () => {
     try {
@@ -51,7 +76,17 @@ export default function VideoPlayer() {
       if (!response.ok) throw new Error('Video not found');
 
       const data = await response.json();
+      console.log('📹 Video data:', data);
+      console.log('👤 Creator wallet:', data.creatorWallet);
       setVideo(data);
+
+      // Fetch creator profile
+      if (data.creatorWallet) {
+        console.log('🔍 Fetching creator profile for:', data.creatorWallet);
+        fetchCreatorProfile(data.creatorWallet);
+      } else {
+        console.warn('⚠️ No creator wallet found for this video!');
+      }
     } catch (error) {
       console.error('Failed to fetch video:', error);
     } finally {
@@ -59,10 +94,33 @@ export default function VideoPlayer() {
     }
   };
 
-  const checkAccess = async () => {
-    if (!publicKey || !id) return;
+  const fetchCreatorProfile = async (walletAddress: string) => {
+    try {
+      const response = await fetch('/api/users/profile', {
+        headers: {
+          'x-wallet-address': walletAddress,
+        },
+      });
 
+      if (response.ok) {
+        const data = await response.json();
+        setCreatorProfile(data.user);
+      }
+    } catch (error) {
+      console.error('Failed to fetch creator profile:', error);
+    }
+  };
+
+  const checkAccess = async () => {
+    if (!publicKey || !id) {
+      console.log('⚠️ Cannot check access: missing publicKey or id');
+      setCheckingAccess(false);
+      return;
+    }
+
+    setCheckingAccess(true);
     const walletAddress = publicKey.toBase58();
+    console.log(`🔍 Checking access for video ${id}...`);
 
     try {
       // Try to access the video stream
@@ -72,18 +130,74 @@ export default function VideoPlayer() {
         },
       });
 
+      console.log(`📡 Stream endpoint response status: ${response.status}`);
+
       if (response.status === 402) {
         // HTTP 402 Payment Required - x402 protocol
-        const data = await response.json();
         setHasAccess(false);
-        console.log('💳 HTTP 402 Payment Required:', data);
+        console.log('💳 HTTP 402 Payment Required - User does NOT have access');
       } else if (response.ok) {
         // Already have access
         setHasAccess(true);
-        console.log('✅ Access granted');
+        console.log('✅ Access granted - User OWNS this video! Setting hasAccess = true');
+
+        // Fetch signed URL for direct streaming from R2
+        fetchVideoStreamUrl();
+      } else {
+        console.log(`⚠️ Unexpected response status: ${response.status}`);
+        setHasAccess(false);
       }
     } catch (error) {
-      console.error('Error checking access:', error);
+      console.error('❌ Error checking access:', error);
+      setHasAccess(false);
+    } finally {
+      setCheckingAccess(false);
+    }
+  };
+
+  const fetchVideoStreamUrl = async () => {
+    if (!publicKey || !id) return;
+
+    try {
+      // Check if video uses local storage
+      if (video?.videoUrl && video.videoUrl.startsWith('/api/storage/')) {
+        console.log('📂 Using local storage video');
+        console.log(`   Video URL: ${video.videoUrl}`);
+        setVideoStreamUrl(video.videoUrl);
+        return;
+      }
+
+      // Otherwise use R2 secure streaming
+      console.log('🔗 Fetching secure streaming session...');
+      const response = await fetch(`/api/videos/${id}/play-url`, {
+        headers: {
+          'x-wallet-address': publicKey.toBase58(),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get streaming URL');
+      }
+
+      const data = await response.json();
+      console.log('✅ Got streaming session!');
+      console.log(`   Session token: ${data.sessionToken.substring(0, 20)}...`);
+      console.log(`   Expires in: ${data.expiresIn}s`);
+
+      // Store session token
+      setSessionToken(data.sessionToken);
+
+      // Use secure streaming endpoint with session token
+      // This endpoint validates the session before redirecting to R2
+      const secureStreamUrl = `/api/videos/${id}/stream-secure?session=${encodeURIComponent(data.sessionToken)}`;
+      setVideoStreamUrl(secureStreamUrl);
+
+      console.log('🔒 Using session-based secure streaming');
+      console.log('   URL sharing is now prevented - session is tied to your wallet');
+    } catch (error) {
+      console.error('❌ Error fetching stream URL:', error);
+      // Fallback to proxy streaming
+      setVideoStreamUrl(`/api/videos/${id}/play`);
     }
   };
 
@@ -93,6 +207,8 @@ export default function VideoPlayer() {
       return;
     }
 
+    // Optimistic UI: immediately show video player
+    setHasAccess(true);
     setPaying(true);
 
     try {
@@ -122,8 +238,6 @@ export default function VideoPlayer() {
 
       if (data.alreadyPaid) {
         console.log('✅ Already paid for this video!');
-        setHasAccess(true);
-        alert('You already have access to this video!');
         return;
       }
 
@@ -131,18 +245,23 @@ export default function VideoPlayer() {
       console.log(`Transaction: ${data.signature}`);
       console.log('=== No Wallet Popup Required! ===\n');
 
+      // Show brief success message
       setPaymentSuccess(true);
-      setHasAccess(true);
-
-      // Show success message
-      setTimeout(() => setPaymentSuccess(false), 3000);
+      setTimeout(() => setPaymentSuccess(false), 1500);
     } catch (error: any) {
-      console.error('Payment failed:', error);
+      console.error('❌ Payment failed:', error);
+
+      // Revert optimistic UI on error
+      setHasAccess(false);
 
       let errorMessage = 'Payment failed. Please try again.';
 
-      if (error.message?.includes('insufficient funds')) {
-        errorMessage = 'Facilitator has insufficient USDC. Please contact support.';
+      if (error.message?.includes('No Active Session')) {
+        errorMessage = '⚠️ Please deposit USDC first to enable seamless payments. Refresh the page to see the deposit modal.';
+      } else if (error.message?.includes('Insufficient Balance')) {
+        errorMessage = '⚠️ Not enough credits. Please add more USDC to your session. Refresh the page to see the top-up option.';
+      } else if (error.message?.includes('insufficient funds')) {
+        errorMessage = '⚠️ Insufficient USDC in your wallet. Please add USDC to your wallet first.';
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -224,27 +343,86 @@ export default function VideoPlayer() {
           transition={{ delay: 0.1 }}
           className="relative aspect-video bg-neutral-900 rounded-xl overflow-hidden mb-6 border border-neutral-800/50"
         >
-          {hasAccess ? (
-            // Video player (when user has access)
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/10 to-pink-500/10">
+          {checkingAccess ? (
+            // Loading state while checking access
+            <div className="w-full h-full flex items-center justify-center">
               <div className="text-center">
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.2 }}
-                >
-                  <div className="w-24 h-24 bg-purple-500/10 rounded-full flex items-center justify-center mb-6 mx-auto">
-                    <svg className="w-12 h-12 text-purple-500" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </div>
-                  <p className="text-white text-xl font-semibold mb-2">Video Player</p>
-                  <p className="text-neutral-400 text-sm">
-                    In production, video stream would play here
-                  </p>
-                </motion.div>
+                <div className="w-12 h-12 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mb-4 mx-auto"></div>
+                <p className="text-neutral-400 text-sm">Checking access...</p>
               </div>
             </div>
+          ) : hasAccess ? (
+            // Video player (when user has access)
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="w-full h-full"
+            >
+              {videoStreamUrl ? (
+                <video
+                  key={videoStreamUrl}
+                  controls
+                  autoPlay
+                  preload="metadata"
+                  playsInline
+                  className="w-full h-full object-contain bg-black"
+                  controlsList="nodownload"
+                  onContextMenu={(e) => e.preventDefault()}
+                  src={videoStreamUrl}
+                  onLoadStart={() => console.log('Video: Load started')}
+                  onLoadedMetadata={() => console.log('Video: Metadata loaded')}
+                  onLoadedData={() => {
+                    console.log('Video: Data loaded');
+                    // Auto-play as soon as data is loaded
+                    const videoEl = document.querySelector('video');
+                    if (videoEl) {
+                      videoEl.play().catch(err => console.log('Auto-play prevented:', err));
+                    }
+                  }}
+                  onCanPlay={() => console.log('Video: Can play')}
+                  onCanPlayThrough={() => console.log('Video: Can play through')}
+                  onWaiting={() => console.log('Video: Waiting/Buffering')}
+                  onPlaying={() => console.log('Video: Playing')}
+                  onError={(e) => {
+                    console.error('Video error:', e);
+                    const videoEl = e.target as HTMLVideoElement;
+                    if (videoEl.error) {
+                      console.error('Error code:', videoEl.error.code);
+                      console.error('Error message:', videoEl.error.message);
+
+                      // Error codes: 1=ABORTED, 2=NETWORK, 3=DECODE, 4=SRC_NOT_SUPPORTED
+                      // If network error (likely expired signed URL), auto-refresh it
+                      if (videoEl.error.code === 2 || videoEl.error.code === 4) {
+                        console.log('🔄 Network error - URL may have expired, refreshing...');
+                        const currentTime = videoEl.currentTime;
+
+                        // Fetch fresh signed URL
+                        fetchVideoStreamUrl().then(() => {
+                          console.log('✅ URL refreshed - resuming playback');
+                          // Resume from where we left off
+                          setTimeout(() => {
+                            if (videoEl) {
+                              videoEl.currentTime = currentTime;
+                              videoEl.play().catch(err => console.error('Resume failed:', err));
+                            }
+                          }, 100);
+                        });
+                      }
+                    }
+                  }}
+                >
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin mb-4 mx-auto"></div>
+                    <p className="text-neutral-400 text-sm">Loading video...</p>
+                  </div>
+                </div>
+              )}
+            </motion.div>
           ) : (
             // Payment required screen with UnlockButton
             <div className="w-full h-full flex items-center justify-center relative">
@@ -340,7 +518,10 @@ export default function VideoPlayer() {
               </div>
             </div>
             <div className="px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-              <p className="text-purple-400 font-semibold text-lg">${video.priceUsdc.toFixed(2)}</p>
+              <p className="text-purple-400 font-semibold text-lg flex items-center gap-1.5">
+                ${video.priceUsdc.toFixed(2)}
+                <UsdcIcon size={18} />
+              </p>
             </div>
           </div>
 
@@ -348,13 +529,23 @@ export default function VideoPlayer() {
 
           {/* Creator Info */}
           <div className="flex items-center gap-3 pt-4 border-t border-neutral-700/50">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500"></div>
+            {creatorProfile?.profile_picture_url ? (
+              <img
+                src={creatorProfile.profile_picture_url}
+                alt={creatorProfile.username}
+                className="w-10 h-10 rounded-full object-cover border border-neutral-700"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
+                {creatorProfile?.username ? creatorProfile.username[0].toUpperCase() : 'A'}
+              </div>
+            )}
             <div>
               <p className="text-sm text-neutral-400">Creator</p>
               <p className="text-white font-medium">
-                {video.creatorWallet
+                {creatorProfile?.username || (video.creatorWallet
                   ? `${video.creatorWallet.slice(0, 4)}...${video.creatorWallet.slice(-4)}`
-                  : 'Anonymous'}
+                  : 'Anonymous')}
               </p>
             </div>
           </div>
@@ -373,6 +564,19 @@ export default function VideoPlayer() {
               </p>
             </motion.div>
           )}
+        </motion.div>
+
+        {/* Comments Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <CommentSection
+            videoId={id!}
+            commentsEnabled={video?.commentsEnabled ?? true}
+            commentPrice={video?.commentPrice ?? 0}
+          />
         </motion.div>
       </div>
     </main>

@@ -27,13 +27,13 @@ router.post(
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      const { title, description, priceUsdc } = req.body;
+      const { title, description, category, priceUsdc } = req.body;
 
-      if (!title || priceUsdc === undefined) {
+      if (!title || priceUsdc === undefined || !category) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
-      console.log(`📤 Processing video upload: ${title}`);
+      console.log(`📤 Processing video upload: ${title} (Category: ${category})`);
 
       // Validate video file
       const validation = await validateVideoFile(req.file.path);
@@ -50,15 +50,18 @@ router.post(
       });
 
       // Create video record in database
+      const videoId = `video_${Date.now()}_${Math.random().toString(36).substring(7)}`;
       const video = await db.createVideo({
+        id: videoId,
         creatorId: req.user.id,
         creatorWallet: req.user.walletAddress,
         title,
         description: description || '',
+        category: category || 'Entertainment',
         priceUsdc: parseFloat(priceUsdc),
         thumbnailUrl: processed.thumbnailUrl,
         videoUrl: processed.videoUrl,
-        videoPath: processed.arweaveId,
+        videoPath: processed.storageId,
         duration: processed.duration,
         views: 0,
         earnings: 0,
@@ -70,7 +73,8 @@ router.post(
         video: {
           id: video.id,
           title: video.title,
-          arweaveId: processed.arweaveId,
+          storageId: processed.storageId,
+          fileSize: processed.fileSize,
           thumbnailUrl: processed.thumbnailUrl,
           videoUrl: processed.videoUrl,
           duration: processed.duration,

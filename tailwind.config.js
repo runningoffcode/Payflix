@@ -42,7 +42,16 @@ export default {
             display: 'none',
           },
         },
-      });
+        '.gradient-bg': {
+          'background': 'linear-gradient(135deg, #A855F7 0%, #EC4899 100%)',
+          'box-shadow': '0 4px 15px rgba(168, 85, 247, 0.4)',
+        },
+        '.glass-effect': {
+          'background': 'rgba(255, 255, 255, 0.05)',
+          'backdrop-filter': 'blur(10px)',
+          'border': '1px solid rgba(255, 255, 255, 0.1)',
+        },
+       });
     },
   ],
 }

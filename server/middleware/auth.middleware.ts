@@ -119,15 +119,18 @@ export async function authenticateWallet(
       return;
     }
 
-    // Get or create user
+    // Get or create user (all users are creators by default)
     let user = await db.getUserByWallet(walletAddress);
 
     if (!user) {
-      // Auto-create user on first request
+      // Auto-create user on first request as creator
       user = await db.createUser({
         walletAddress,
-        isCreator: false,
+        isCreator: true, // Everyone is a creator by default
       });
+    } else if (!user.isCreator) {
+      // Upgrade existing non-creator users to creators automatically
+      user = await db.updateUser(user.id, { isCreator: true }) || user;
     }
 
     req.user = user;

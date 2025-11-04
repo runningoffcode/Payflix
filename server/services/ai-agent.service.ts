@@ -10,7 +10,7 @@ import config from '../config';
  * 1. Receives payment transaction signature
  * 2. Verifies the payment on Solana blockchain
  * 3. Validates payment amount matches video price
- * 4. Automatically splits revenue (97.65% creator / 2.35% platform)
+ * 4. Automatically splits revenue (97.15% creator / 2.85% platform)
  * 5. Updates payment status and video access
  */
 export class AIAgentService {

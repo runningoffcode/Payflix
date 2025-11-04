@@ -54,9 +54,10 @@ class Database {
   }
 
   async getAllVideos(): Promise<Video[]> {
-    return Array.from(this.videos.values()).sort(
-      (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
-    );
+    // Filter out archived videos from public listings
+    return Array.from(this.videos.values())
+      .filter((v) => !v.archived)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   async getVideosByCreator(creatorId: string): Promise<Video[]> {
@@ -195,12 +196,14 @@ class Database {
       creatorWallet: creator1.walletAddress,
       title: 'Introduction to Solana Development',
       description: 'Learn the basics of building on Solana blockchain. Perfect for beginners!',
+      category: 'Education',
       priceUsdc: 2.99,
       thumbnailUrl: 'https://picsum.photos/seed/video1/640/360',
       videoUrl: '/api/videos/video_1/stream',
       duration: 1245, // seconds
       views: 127,
       earnings: 0,
+      archived: false,
       createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
       updatedAt: new Date(),
     };
@@ -212,12 +215,14 @@ class Database {
       creatorWallet: creator1.walletAddress,
       title: 'Advanced Web3 Patterns',
       description: 'Deep dive into Web3 development patterns and best practices.',
+      category: 'Technology',
       priceUsdc: 4.99,
       thumbnailUrl: 'https://picsum.photos/seed/video2/640/360',
       videoUrl: '/api/videos/video_2/stream',
       duration: 2156,
       views: 89,
       earnings: 0,
+      archived: false,
       createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
       updatedAt: new Date(),
     };
@@ -229,12 +234,14 @@ class Database {
       creatorWallet: creator1.walletAddress,
       title: 'Building DApps on Solana',
       description: 'Complete guide to building decentralized applications on Solana.',
+      category: 'Technology',
       priceUsdc: 6.99,
       thumbnailUrl: 'https://picsum.photos/seed/video3/640/360',
       videoUrl: '/api/videos/video_3/stream',
       duration: 3421,
       views: 234,
       earnings: 0,
+      archived: false,
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
       updatedAt: new Date(),
     };

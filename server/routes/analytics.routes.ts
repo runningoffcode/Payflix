@@ -1,8 +1,14 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../database';
+import { db } from '../database/db-factory';
 import { aiAgentService } from '../services/ai-agent.service';
+import { createClient } from '@supabase/supabase-js';
 
 const router = Router();
+
+// Initialize Supabase client for comment queries
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
  * GET /api/analytics/platform
@@ -52,15 +58,36 @@ router.get('/creator/:walletAddress', async (req: Request, res: Response) => {
     }
 
     const videos = await db.getVideosByCreator(user.id);
-    const allPayments = [];
+    const allPayments: any[] = [];
+    const videoEarningsMap = new Map<string, number>();
+    const videoCommentCountMap = new Map<string, number>();
 
+    // Calculate earnings for each video from verified payments
     for (const video of videos) {
       const payments = await db.getPaymentsByVideo(video.id);
-      allPayments.push(...payments);
+      const verifiedPayments = payments.filter((p: any) => p.status === 'verified' || p.status === 'confirmed');
+      allPayments.push(...verifiedPayments);
+
+      const earnings = verifiedPayments.reduce((sum: number, p: any) => sum + (p.creatorAmount || p.amount || 0), 0);
+      videoEarningsMap.set(video.id, earnings);
+
+      // Get comment count for this video
+      try {
+        const { count } = await supabase
+          .from('comments')
+          .select('*', { count: 'exact', head: true })
+          .eq('video_id', video.id);
+
+        videoCommentCountMap.set(video.id, count || 0);
+      } catch (error) {
+        console.error(`Error fetching comments for video ${video.id}:`, error);
+        videoCommentCountMap.set(video.id, 0);
+      }
     }
 
-    const totalEarnings = allPayments.reduce((sum, p) => sum + p.creatorAmount, 0);
-    const totalViews = videos.reduce((sum, v) => sum + v.views, 0);
+    const totalEarnings = allPayments.reduce((sum: number, p: any) => sum + (p.creatorAmount || p.amount || 0), 0);
+    const totalViews = videos.reduce((sum: number, v: any) => sum + v.views, 0);
+    const totalComments = Array.from(videoCommentCountMap.values()).reduce((sum, count) => sum + count, 0);
 
     res.json({
       creator: {
@@ -72,6 +99,7 @@ router.get('/creator/:walletAddress', async (req: Request, res: Response) => {
         totalEarnings,
         totalViews,
         totalSales: allPayments.length,
+        totalComments,
         averageVideoPrice: videos.reduce((sum, v) => sum + v.priceUsdc, 0) / (videos.length || 1),
       },
       videos: videos.map((v) => ({
@@ -79,7 +107,8 @@ router.get('/creator/:walletAddress', async (req: Request, res: Response) => {
         title: v.title,
         priceUsdc: v.priceUsdc,
         views: v.views,
-        earnings: v.earnings,
+        earnings: videoEarningsMap.get(v.id) || 0,
+        commentCount: videoCommentCountMap.get(v.id) || 0,
         createdAt: v.createdAt,
       })),
     });

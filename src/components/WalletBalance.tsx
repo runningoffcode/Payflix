@@ -1,28 +1,55 @@
 import { useEffect, useState } from 'react';
-import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
+import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 import { motion, AnimatePresence } from 'framer-motion';
+import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
 
 /**
  * Wallet Balance Display - Bottom Left
  * Shows connected wallet balance with USDC and SOL
  */
 export default function WalletBalance() {
-  const { publicKey, connected } = useWallet();
-  const { connection } = useConnection();
+  const { user: privyUser, authenticated } = usePrivy();
+  const { wallets } = useWallets();
+  const connection = new Connection('https://devnet.helius-rpc.com/?api-key=84db05e3-e9ad-479e-923e-80be54938a18', 'confirmed');
+
+  // Get Solana wallet address from Privy (connected wallet OR embedded wallet)
+  const getWalletAddress = (): string | null => {
+    if (!privyUser) return null;
+
+    // Try to get address from connected Solana wallets first
+    const solanaWallets = wallets?.filter((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana');
+    if (solanaWallets && solanaWallets.length > 0) {
+      return solanaWallets[0].address;
+    }
+
+    // Fallback to embedded wallet from linkedAccounts
+    const embeddedWallet = privyUser.linkedAccounts?.find(
+      (acc: any) => acc.type === 'wallet' && acc.chainType === 'solana'
+    );
+    if (embeddedWallet) {
+      return embeddedWallet.address;
+    }
+
+    return null;
+  };
+
+  const walletAddress = getWalletAddress();
+  const publicKey = walletAddress ? new PublicKey(walletAddress) : null;
+  const connected = authenticated && !!walletAddress;
   const [solBalance, setSolBalance] = useState<number>(0);
   const [usdcBalance, setUsdcBalance] = useState<number>(0);
   const [loading, setLoading] = useState(false);
 
   // USDC Mint Address (Devnet)
-  const USDC_MINT = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
+  const USDC_MINT = new PublicKey(import.meta.env.VITE_USDC_MINT_ADDRESS || '9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2');
 
   useEffect(() => {
     if (connected && publicKey) {
       fetchBalances();
 
-      // Refresh every 10 seconds
-      const interval = setInterval(fetchBalances, 10000);
+      // Refresh every 60 seconds to avoid rate limits (reduced from 10s)
+      const interval = setInterval(fetchBalances, 60000);
       return () => clearInterval(interval);
     }
   }, [connected, publicKey]);
@@ -30,17 +57,24 @@ export default function WalletBalance() {
   const fetchBalances = async () => {
     if (!publicKey) return;
 
+    console.log('🔵 WalletBalance: Fetching balances (queued - BACKGROUND priority)...');
     setLoading(true);
     try {
-      // Fetch SOL balance
-      const balance = await connection.getBalance(publicKey);
+      // Queue SOL balance fetch with BACKGROUND priority (lowest priority for polling widgets)
+      const balance = await queueRPCRequest(
+        () => connection.getBalance(publicKey),
+        RPC_PRIORITY.BACKGROUND
+      );
       setSolBalance(balance / LAMPORTS_PER_SOL);
 
-      // Fetch USDC balance
+      // Queue USDC balance fetch with BACKGROUND priority
       try {
-        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
-          mint: USDC_MINT,
-        });
+        const tokenAccounts = await queueRPCRequest(
+          () => connection.getParsedTokenAccountsByOwner(publicKey, {
+            mint: USDC_MINT,
+          }),
+          RPC_PRIORITY.BACKGROUND
+        );
 
         if (tokenAccounts.value.length > 0) {
           const usdcAmount = tokenAccounts.value[0].account.data.parsed.info.tokenAmount.uiAmount;
@@ -48,12 +82,13 @@ export default function WalletBalance() {
         } else {
           setUsdcBalance(0);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.log('No USDC account found');
         setUsdcBalance(0);
       }
-    } catch (error) {
-      console.error('Error fetching balances:', error);
+    } catch (error: any) {
+      console.error('❌ WalletBalance: Error fetching balances:', error);
+      // Keep showing last known balance instead of clearing it
     } finally {
       setLoading(false);
     }

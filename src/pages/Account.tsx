@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet } from '../hooks/useWallet';
 import { Link } from 'react-router-dom';
 
 /**
@@ -47,8 +47,9 @@ export default function Account() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState('');
 
-  // Mock purchased videos (will be replaced with Supabase data)
-  const [purchasedVideos] = useState<PurchasedVideo[]>([]);
+  // Purchased videos state
+  const [purchasedVideos, setPurchasedVideos] = useState<PurchasedVideo[]>([]);
+  const [loadingVideos, setLoadingVideos] = useState(false);
 
   // Mock subscriptions (will be replaced with Supabase data)
   const [subscriptions] = useState<Subscription[]>([]);
@@ -64,13 +65,17 @@ export default function Account() {
 
         try {
           // Load profile from backend API
-          const response = await fetch(`/api/users/profile?walletAddress=${walletAddress}`);
+          const response = await fetch('/api/users/profile', {
+            headers: {
+              'x-wallet-address': walletAddress,
+            },
+          });
 
           if (response.ok) {
             const data = await response.json();
             setProfile({
-              name: data.username || 'Anonymous User',
-              profilePicture: data.profilePicture,
+              name: data.user.username || 'anon',
+              profilePicture: data.user.profile_picture_url,
               wallet: walletAddress,
             });
           } else {
@@ -86,43 +91,80 @@ export default function Account() {
     loadProfile();
   }, [publicKey]);
 
-  const handleProfilePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && publicKey) {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const profilePictureData = reader.result as string;
-
+  // Fetch purchased videos
+  useEffect(() => {
+    const fetchPurchasedVideos = async () => {
+      if (publicKey) {
+        setLoadingVideos(true);
         try {
-          // Update profile picture on backend
-          const response = await fetch('/api/users/profile', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              walletAddress: publicKey.toBase58(),
-              profilePicture: profilePictureData,
-            }),
+          const response = await fetch('/api/users/purchased-videos', {
+            headers: {
+              'x-wallet-address': publicKey.toBase58(),
+            },
           });
 
           if (response.ok) {
             const data = await response.json();
-            setProfile({
-              name: data.user.username || 'Anonymous User',
-              profilePicture: data.user.profilePicture,
-              wallet: data.user.walletAddress,
-            });
-            console.log('✅ Profile picture updated');
-          } else {
-            const errorData = await response.json();
-            console.error('Failed to update profile picture:', errorData.message);
-            alert('Failed to update profile picture. Please try again.');
+            console.log('📦 Raw purchased videos data:', data);
+            // Map backend video data to frontend format
+            const videos = data.videos.map((video: any) => ({
+              id: video.id,
+              title: video.title,
+              thumbnail: video.thumbnailUrl || video.thumbnail_url || '/placeholder-video.jpg',
+              creator: video.creatorName || 'Unknown Creator',
+              price: video.priceUsdc || video.price_usdc || 0,
+              purchasedAt: video.createdAt || video.created_at || new Date().toISOString(),
+            }));
+            setPurchasedVideos(videos);
+            console.log('✅ Loaded', videos.length, 'purchased videos');
           }
         } catch (error) {
-          console.error('Error updating profile picture:', error);
-          alert('Failed to update profile picture. Please try again.');
+          console.error('Error fetching purchased videos:', error);
+        } finally {
+          setLoadingVideos(false);
         }
-      };
-      reader.readAsDataURL(file);
+      }
+    };
+
+    fetchPurchasedVideos();
+  }, [publicKey]);
+
+  const handleProfilePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && publicKey) {
+      try {
+        const formData = new FormData();
+        formData.append('profilePicture', file);
+
+        // Update profile picture on backend
+        const response = await fetch('/api/users/update-profile', {
+          method: 'PUT',
+          headers: {
+            'x-wallet-address': publicKey.toBase58(),
+          },
+          body: formData,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setProfile({
+            name: data.user.username || 'anon',
+            profilePicture: data.user.profile_picture_url,
+            wallet: data.user.wallet_address,
+          });
+          console.log('✅ Profile picture updated');
+
+          // Notify other components (like Sidebar) to refresh
+          window.dispatchEvent(new CustomEvent('profileUpdated'));
+        } else {
+          const errorData = await response.json();
+          console.error('Failed to update profile picture:', errorData.error);
+          alert(errorData.error || 'Failed to update profile picture. Please try again.');
+        }
+      } catch (error) {
+        console.error('Error updating profile picture:', error);
+        alert('Failed to update profile picture. Please try again.');
+      }
     }
   };
 
@@ -133,11 +175,13 @@ export default function Account() {
 
     try {
       // Update username on backend
-      const response = await fetch('/api/users/profile', {
+      const response = await fetch('/api/users/update-profile', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-wallet-address': publicKey.toBase58(),
+        },
         body: JSON.stringify({
-          walletAddress: publicKey.toBase58(),
           username: tempName.trim(),
         }),
       });
@@ -145,16 +189,19 @@ export default function Account() {
       if (response.ok) {
         const data = await response.json();
         setProfile({
-          name: data.user.username || 'Anonymous User',
-          profilePicture: data.user.profilePicture,
-          wallet: data.user.walletAddress,
+          name: data.user.username || 'anon',
+          profilePicture: data.user.profile_picture_url,
+          wallet: data.user.wallet_address,
         });
         setIsEditingName(false);
         console.log('✅ Username updated');
+
+        // Notify other components (like Sidebar) to refresh
+        window.dispatchEvent(new CustomEvent('profileUpdated'));
       } else {
         const errorData = await response.json();
         console.error('Failed to update username:', errorData.message);
-        alert(errorData.message || 'Failed to update username. Please try again.');
+        alert(errorData.error || 'Failed to update username. Please try again.');
       }
     } catch (error) {
       console.error('Error updating username:', error);
@@ -316,7 +363,7 @@ export default function Account() {
                     ) : (
                       <div className="flex items-center gap-4">
                         <span className="text-white text-lg">
-                          {profile.name || 'Anonymous User'}
+                          {profile.name || 'anon'}
                         </span>
                         <button
                           onClick={handleNameEdit}
@@ -366,7 +413,12 @@ export default function Account() {
             <div className="bg-flix-light-gray rounded-xl p-8">
               <h2 className="text-2xl font-bold text-white mb-6">Purchase History</h2>
 
-              {purchasedVideos.length === 0 ? (
+              {loadingVideos ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-flix-cyan mx-auto mb-4"></div>
+                  <p className="text-flix-text-secondary">Loading your videos...</p>
+                </div>
+              ) : purchasedVideos.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-6xl mb-4">📹</div>
                   <p className="text-flix-text-secondary text-lg mb-4">
@@ -390,24 +442,32 @@ export default function Account() {
                       whileHover={{ scale: 1.02 }}
                       className="bg-flix-dark rounded-lg overflow-hidden border border-flix-light-gray"
                     >
-                      <img
-                        src={video.thumbnail}
-                        alt={video.title}
-                        className="w-full h-40 object-cover"
-                      />
+                      <Link to={`/video/${video.id}`}>
+                        <img
+                          src={video.thumbnail}
+                          alt={video.title}
+                          className="w-full h-40 object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                        />
+                      </Link>
                       <div className="p-4">
                         <h3 className="text-white font-semibold mb-1 line-clamp-2">
                           {video.title}
                         </h3>
-                        <p className="text-flix-text-secondary text-sm mb-2">
+                        <p className="text-flix-text-secondary text-sm mb-3">
                           by {video.creator}
                         </p>
-                        <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center justify-between text-sm mb-3">
                           <span className="text-flix-cyan">${video.price.toFixed(2)}</span>
                           <span className="text-flix-text-secondary">
                             {new Date(video.purchasedAt).toLocaleDateString()}
                           </span>
                         </div>
+                        <Link
+                          to={`/video/${video.id}`}
+                          className="block w-full text-center px-4 py-2 bg-gradient-to-r from-flix-cyan to-purple-500 text-white rounded-lg hover:opacity-90 transition-opacity font-semibold"
+                        >
+                          Watch Now
+                        </Link>
                       </div>
                     </motion.div>
                   ))}

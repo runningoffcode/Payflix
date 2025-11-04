@@ -4,29 +4,133 @@
  * This enables seamless payments without popups for 24 hours
  */
 
-import { useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { Transaction } from '@solana/web3.js';
+import { useState, useEffect } from 'react';
+import { useWallet } from '../hooks/useWallet';
+import { Connection, Transaction, PublicKey } from '@solana/web3.js';
+import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { GradientButton } from './ui/GradientButton';
+import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
 
 interface SessionCreationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSessionCreated: () => void;
+  hasExistingSession?: boolean;
 }
 
 export default function SessionCreationModal({
   isOpen,
   onClose,
   onSessionCreated,
+  hasExistingSession = false,
 }: SessionCreationModalProps) {
   const { publicKey, signTransaction } = useWallet();
   const [approvedAmount, setApprovedAmount] = useState<number>(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<'setup' | 'signing' | 'success'>('setup');
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [fetchingBalance, setFetchingBalance] = useState(false);
 
   const quickAmounts = [5, 10, 20, 50, 100];
+
+  // Fetch wallet balance when modal opens
+  useEffect(() => {
+    const fetchWalletBalance = async (retryCount = 0) => {
+      if (!isOpen || !publicKey) {
+        console.log('⚠️ Modal not open or no wallet connected');
+        return;
+      }
+
+      setFetchingBalance(true);
+      console.log(`🔍 Fetching wallet balance for MAX button (HIGH priority)...`);
+
+      try {
+        // Connect using Helius RPC
+        const connection = new Connection('https://devnet.helius-rpc.com/?api-key=84db05e3-e9ad-479e-923e-80be54938a18', 'confirmed');
+
+        // USDC Mint address - custom test token
+        const USDC_MINT = new PublicKey('9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2');
+
+        // Get user's USDC token account
+        const userUsdcAccount = await getAssociatedTokenAddress(
+          USDC_MINT,
+          publicKey
+        );
+
+        console.log('   📍 User USDC account:', userUsdcAccount.toBase58());
+
+        // Queue account info fetch with HIGH priority (user is waiting for MAX button)
+        const accountInfo = await queueRPCRequest(
+          () => connection.getAccountInfo(userUsdcAccount),
+          RPC_PRIORITY.HIGH
+        );
+
+        if (!accountInfo) {
+          console.log('   ⚠️ No USDC account found - balance is 0');
+          setWalletBalance(0);
+          setFetchingBalance(false);
+          return;
+        }
+
+        // Queue balance fetch with HIGH priority
+        const balance = await queueRPCRequest(
+          () => connection.getTokenAccountBalance(userUsdcAccount),
+          RPC_PRIORITY.HIGH
+        );
+        const usdcBalance = parseFloat(balance.value.uiAmountString || '0');
+
+        console.log(`   ✅ Wallet balance fetched: ${usdcBalance} USDC`);
+        setWalletBalance(usdcBalance);
+        setFetchingBalance(false);
+      } catch (error: any) {
+        console.error('   ❌ Error fetching wallet balance:', error?.message || error);
+        setWalletBalance(null);
+        setFetchingBalance(false);
+      }
+    };
+
+    fetchWalletBalance();
+  }, [isOpen, publicKey]);
+
+  // Function to set max deposit
+  const handleMaxDeposit = () => {
+    console.log('🔘 MAX button clicked!');
+    console.log('   Current wallet balance:', walletBalance);
+    console.log('   Fetching balance:', fetchingBalance);
+    console.log('   Public key:', publicKey?.toBase58());
+
+    if (!publicKey) {
+      setError('Please connect your wallet first');
+      return;
+    }
+    if (fetchingBalance) {
+      setError('Loading balance... Please wait');
+      setTimeout(() => setError(null), 2000);
+      return;
+    }
+    if (walletBalance !== null && walletBalance > 0) {
+      const maxAmount = Math.floor(walletBalance * 100) / 100;
+      console.log(`   ✅ Setting approved amount to: ${maxAmount}`);
+      setApprovedAmount(maxAmount);
+    } else if (walletBalance === 0) {
+      setError('Your USDC balance is 0. Please add funds to your wallet.');
+      setTimeout(() => setError(null), 3000);
+    } else {
+      setError('Unable to fetch wallet balance. Please try again.');
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  // Reset modal state when it opens
+  useEffect(() => {
+    if (isOpen) {
+      setStep('setup');
+      setApprovedAmount(10);
+      setError(null);
+      setLoading(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -54,8 +158,15 @@ export default function SessionCreationModal({
       });
 
       if (!createResponse.ok) {
-        const errorData = await createResponse.json();
-        throw new Error(errorData.message || 'Failed to create session');
+        let errorMessage = 'Failed to create session';
+        try {
+          const errorData = await createResponse.json();
+          errorMessage = errorData.message || errorData.error || 'Failed to create session';
+        } catch (parseError) {
+          // If response body is empty or not JSON, use status text
+          errorMessage = `Server error (${createResponse.status}): ${createResponse.statusText || 'Please try again'}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const { sessionId, approvalTransaction, sessionPublicKey, expiresAt } =
@@ -85,17 +196,28 @@ export default function SessionCreationModal({
       });
 
       if (!confirmResponse.ok) {
-        const errorData = await confirmResponse.json();
-        throw new Error(errorData.message || 'Failed to confirm session');
+        let errorMessage = 'Failed to confirm session';
+        try {
+          const errorData = await confirmResponse.json();
+          errorMessage = errorData.message || errorData.error || 'Failed to confirm session';
+        } catch (parseError) {
+          // If response body is empty or not JSON, use status text
+          errorMessage = `Server error (${confirmResponse.status}): ${confirmResponse.statusText || 'Please try again'}`;
+        }
+        throw new Error(errorMessage);
       }
 
       console.log('🎉 Session confirmed! Seamless payments enabled.');
       setStep('success');
 
-      // Close modal and notify parent after a brief delay
+      // Close modal after showing success message
       setTimeout(() => {
         onSessionCreated();
         onClose();
+        // Reset state for next time
+        setStep('setup');
+        setApprovedAmount(10);
+        setError(null);
       }, 2000);
     } catch (err: any) {
       console.error('❌ Session creation failed:', err);
@@ -131,10 +253,12 @@ export default function SessionCreationModal({
                 </svg>
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">
-                💰 Deposit USDC to Enter the Flix!
+                💰 {hasExistingSession ? 'Add More Credits' : 'Deposit USDC to Enter the Flix!'}
               </h2>
               <p className="text-neutral-400 text-sm">
-                Add credits to your account and watch videos instantly
+                {hasExistingSession
+                  ? 'Top up your credits to keep watching videos'
+                  : 'Add credits to your account and watch videos instantly'}
               </p>
             </div>
 
@@ -209,16 +333,32 @@ export default function SessionCreationModal({
                   min="1"
                   max="1000"
                   step="1"
-                  className="w-full bg-neutral-800 border border-neutral-600 rounded-lg pl-8 pr-16 py-3 text-white text-lg font-medium focus:outline-none focus:border-purple-500 transition-colors"
+                  className="w-full bg-neutral-800 border border-neutral-600 rounded-lg pl-8 pr-24 py-3 text-white text-lg font-medium focus:outline-none focus:border-purple-500 transition-colors [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   placeholder="Custom amount"
+                  style={{ MozAppearance: 'textfield' }}
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 font-medium">
+                <button
+                  onClick={handleMaxDeposit}
+                  disabled={fetchingBalance || walletBalance === null || walletBalance === 0}
+                  className="absolute right-16 top-1/2 -translate-y-1/2 px-2 py-1 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={walletBalance !== null ? `Max: $${walletBalance.toFixed(2)} USDC` : 'Fetching balance...'}
+                >
+                  {fetchingBalance ? '...' : 'MAX'}
+                </button>
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 font-medium text-sm">
                   USDC
                 </span>
               </div>
-              <p className="text-xs text-neutral-500 mt-2">
-                💡 Most videos cost $0.01-0.50 • $10 gets you 20-1000 videos!
-              </p>
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-xs text-neutral-500">
+                  💡 Most videos cost $0.01-0.50 • $10 gets you 20-1000 videos!
+                </p>
+                {walletBalance !== null && (
+                  <p className="text-xs text-neutral-400">
+                    Wallet: <span className="text-purple-400 font-medium">${walletBalance.toFixed(2)}</span>
+                  </p>
+                )}
+              </div>
             </div>
 
             {error && (

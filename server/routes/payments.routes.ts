@@ -105,12 +105,13 @@ router.post('/seamless', async (req, res) => {
     }
 
     // Record payment in database
-    const platformFeePercent = 2.35;
+    const platformFeePercent = 2.85;
     const platformAmount = video.priceUsdc * (platformFeePercent / 100);
     const creatorAmount = video.priceUsdc - platformAmount;
 
+    const paymentId = uuidv4();
     await db.createPayment({
-      id: uuidv4(),
+      id: paymentId,
       videoId: video.id,
       userId: user.id,
       userWallet,
@@ -121,6 +122,17 @@ router.post('/seamless', async (req, res) => {
       transactionSignature: result.signature!,
       status: 'verified',
     });
+
+    // Grant video access (lifetime access)
+    await db.grantVideoAccess({
+      userId: user.id,
+      videoId: video.id,
+      paymentId,
+      grantedAt: new Date(),
+      expiresAt: new Date('2099-12-31'), // Lifetime access
+    });
+
+    console.log(`   ✅ Video access granted to user`);
 
     // Increment video views
     await db.incrementVideoViews(videoId);
@@ -189,6 +201,131 @@ router.get('/session/balance', async (req, res) => {
     return res.status(500).json({
       error: 'Failed to fetch session balance',
       message: error.message,
+    });
+  }
+});
+
+/**
+ * POST /api/payments/direct
+ * Process a direct payment (user signs transaction)
+ * Fallback for when user doesn't have a session
+ */
+router.post('/direct', async (req, res) => {
+  try {
+    const { videoId, userWallet, signedTransaction } = req.body;
+
+    if (!videoId || !userWallet || !signedTransaction) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'videoId, userWallet, and signedTransaction are required',
+      });
+    }
+
+    console.log(`\n💳 Direct payment request for video ${videoId}`);
+    console.log(`   User: ${userWallet}`);
+
+    // Get video details
+    const video = await db.getVideoById(videoId);
+    if (!video) {
+      return res.status(404).json({
+        error: 'Video not found',
+      });
+    }
+
+    // Get or create user
+    let user = await db.getUserByWallet(userWallet);
+    if (!user) {
+      console.log(`   Creating new user for wallet: ${userWallet}`);
+      user = await db.createUser({
+        walletAddress: userWallet,
+        username: `User ${userWallet.substring(0, 8)}`,
+        email: null,
+        profilePicture: null,
+      });
+    }
+
+    // Check if user already paid
+    const existingPayment = await db.getUserPaymentForVideo(user.id, videoId);
+    if (existingPayment && existingPayment.status === 'verified') {
+      console.log(`   ✅ User already paid for this video`);
+      return res.json({
+        success: true,
+        alreadyPaid: true,
+        signature: existingPayment.transactionSignature,
+        message: 'You already have access to this video',
+      });
+    }
+
+    // Deserialize and send the signed transaction
+    const { Connection } = require('@solana/web3.js');
+    const connection = new Connection(
+      process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',
+      'confirmed'
+    );
+
+    // Decode the base64 signed transaction
+    const transactionBuffer = Buffer.from(signedTransaction, 'base64');
+    const { Transaction } = require('@solana/web3.js');
+    const transaction = Transaction.from(transactionBuffer);
+
+    console.log(`   📡 Broadcasting transaction...`);
+    const signature = await connection.sendRawTransaction(transaction.serialize(), {
+      skipPreflight: false,
+      preflightCommitment: 'confirmed',
+    });
+
+    console.log(`   ⏳ Confirming transaction: ${signature}`);
+    await connection.confirmTransaction(signature, 'confirmed');
+    console.log(`   ✅ Transaction confirmed!`);
+
+    // Record payment in database
+    const platformFeePercent = 2.85;
+    const platformAmount = video.priceUsdc * (platformFeePercent / 100);
+    const creatorAmount = video.priceUsdc - platformAmount;
+
+    const paymentId = uuidv4();
+    await db.createPayment({
+      id: paymentId,
+      videoId: video.id,
+      userId: user.id,
+      userWallet,
+      creatorWallet: video.creatorWallet!,
+      amount: video.priceUsdc,
+      creatorAmount,
+      platformAmount,
+      transactionSignature: signature,
+      status: 'verified',
+    });
+
+    // Grant video access (lifetime access)
+    await db.grantVideoAccess({
+      userId: user.id,
+      videoId: video.id,
+      paymentId,
+      grantedAt: new Date(),
+      expiresAt: new Date('2099-12-31'), // Lifetime access
+    });
+
+    console.log(`   ✅ Video access granted`);
+
+    // Increment video views
+    await db.incrementVideoViews(videoId);
+
+    return res.json({
+      success: true,
+      signature,
+      message: 'Payment successful! Enjoy your video.',
+      payment: {
+        amount: video.priceUsdc,
+        signature,
+        videoId,
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ Direct payment error:', error);
+    return res.status(500).json({
+      error: 'Payment Processing Error',
+      message: error.message || 'An error occurred while processing payment',
     });
   }
 });

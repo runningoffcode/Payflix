@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { useWallet } from '../hooks/useWallet';
+import { useWalletModal } from '../hooks/useWallet';
 import { motion } from 'framer-motion';
 import { GradientButton } from '@/components/ui/GradientButton';
+import UsdcIcon from '@/components/icons/UsdcIcon';
 
 interface UserProfile {
   id: string;
@@ -21,6 +22,15 @@ interface ProfileStats {
   totalEarnings: number;
 }
 
+interface OwnedVideo {
+  id: string;
+  title: string;
+  thumbnailUrl: string;
+  creatorName: string;
+  priceUsdc: number;
+  createdAt: string;
+}
+
 export default function Profile() {
   const { publicKey, connected } = useWallet();
   const { setVisible } = useWalletModal();
@@ -28,7 +38,9 @@ export default function Profile() {
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<ProfileStats | null>(null);
+  const [ownedVideos, setOwnedVideos] = useState<OwnedVideo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingVideos, setLoadingVideos] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -41,6 +53,7 @@ export default function Profile() {
   useEffect(() => {
     if (connected && publicKey) {
       fetchProfile();
+      fetchOwnedVideos();
     } else {
       setLoading(false);
     }
@@ -69,6 +82,39 @@ export default function Profile() {
       console.error('Failed to fetch profile:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOwnedVideos = async () => {
+    if (!publicKey) return;
+
+    setLoadingVideos(true);
+    try {
+      const walletAddress = publicKey.toBase58();
+
+      const response = await fetch('/api/users/purchased-videos', {
+        headers: {
+          'x-wallet-address': walletAddress,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const videos = data.videos.map((video: any) => ({
+          id: video.id,
+          title: video.title,
+          thumbnailUrl: video.thumbnailUrl || video.thumbnail_url || '/placeholder-video.jpg',
+          creatorName: video.creatorName || 'Unknown Creator',
+          priceUsdc: video.priceUsdc || video.price_usdc || 0,
+          createdAt: video.createdAt || video.created_at || new Date().toISOString(),
+        }));
+        setOwnedVideos(videos);
+        console.log('✅ Loaded', videos.length, 'owned videos');
+      }
+    } catch (error) {
+      console.error('Failed to fetch owned videos:', error);
+    } finally {
+      setLoadingVideos(false);
     }
   };
 
@@ -327,14 +373,6 @@ export default function Profile() {
                       </svg>
                       Edit Profile
                     </GradientButton>
-
-                    {!profile?.is_creator && (
-                      <GradientButton variant="variant" asChild>
-                        <Link to="/creator-studio">
-                          Become a Creator
-                        </Link>
-                      </GradientButton>
-                    )}
                   </div>
                 </>
               )}
@@ -348,12 +386,13 @@ export default function Profile() {
                 <div className="text-3xl font-bold text-purple-400 mb-1">
                   {stats.videosOwned}
                 </div>
-                <div className="text-sm text-neutral-400">Videos Owned</div>
+                <div className="text-sm text-neutral-400">Paid-Views</div>
               </div>
 
               <div>
-                <div className="text-3xl font-bold text-pink-400 mb-1">
+                <div className="text-3xl font-bold text-pink-400 mb-1 flex items-center gap-2">
                   ${stats.totalSpent.toFixed(2)}
+                  <UsdcIcon size={16} />
                 </div>
                 <div className="text-sm text-neutral-400">Total Spent</div>
               </div>
@@ -368,8 +407,9 @@ export default function Profile() {
                   </div>
 
                   <div>
-                    <div className="text-3xl font-bold text-green-400 mb-1">
+                    <div className="text-3xl font-bold text-green-400 mb-1 flex items-center gap-2">
                       ${stats.totalEarnings.toFixed(2)}
+                      <UsdcIcon size={16} />
                     </div>
                     <div className="text-sm text-neutral-400">Total Earnings</div>
                   </div>
@@ -387,24 +427,75 @@ export default function Profile() {
         >
           <h2 className="text-2xl font-semibold text-white mb-6">My Library</h2>
 
-          <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-xl p-12 text-center">
-            <div className="w-20 h-20 bg-purple-500/10 rounded-full flex items-center justify-center mb-6 mx-auto">
-              <svg className="w-10 h-10 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
+          {loadingVideos ? (
+            <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-xl p-12 text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-500 border-t-transparent mx-auto mb-4"></div>
+              <p className="text-neutral-400">Loading your videos...</p>
             </div>
-            <p className="text-neutral-400 mb-8">
-              You haven't purchased any videos yet
-            </p>
-            <GradientButton asChild>
-              <Link to="/">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          ) : ownedVideos.length === 0 ? (
+            <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-xl p-12 text-center">
+              <div className="w-20 h-20 bg-purple-500/10 rounded-full flex items-center justify-center mb-6 mx-auto">
+                <svg className="w-10 h-10 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
-                Browse Videos
-              </Link>
-            </GradientButton>
-          </div>
+              </div>
+              <p className="text-neutral-400 mb-8">
+                You haven't purchased any videos yet
+              </p>
+              <GradientButton asChild>
+                <Link to="/">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  Browse Videos
+                </Link>
+              </GradientButton>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {ownedVideos.map((video) => (
+                <motion.div
+                  key={video.id}
+                  whileHover={{ scale: 1.05 }}
+                  className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-xl overflow-hidden group cursor-pointer"
+                >
+                  <Link to={`/video/${video.id}`} className="block">
+                    <div className="relative aspect-video overflow-hidden">
+                      <img
+                        src={video.thumbnailUrl}
+                        alt={video.title}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                          <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <h3 className="text-white font-semibold mb-2 line-clamp-2 group-hover:text-purple-400 transition-colors">
+                        {video.title}
+                      </h3>
+                      <p className="text-neutral-400 text-sm mb-3">
+                        {video.creatorName}
+                      </p>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-purple-400 font-medium flex items-center gap-1">
+                          ${video.priceUsdc.toFixed(2)}
+                          <UsdcIcon size={14} />
+                        </span>
+                        <span className="text-neutral-500">
+                          Purchased {new Date(video.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </motion.div>
       </div>
     </main>

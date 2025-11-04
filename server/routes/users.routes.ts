@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import { db } from '../database';
+import { db } from '../database/db-factory';
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@supabase/supabase-js';
 
@@ -109,6 +109,7 @@ router.get('/profile', async (req: Request, res: Response) => {
         id: user.id,
         walletAddress: user.walletAddress,
         username: user.username,
+        profile_picture_url: user.profilePictureUrl,
         isCreator: user.isCreator,
         createdAt: user.createdAt,
       },
@@ -198,6 +199,33 @@ router.get('/purchased-videos', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/users/owned-video-ids
+ * Get IDs of all videos user owns (for showing badges on home page)
+ */
+router.get('/owned-video-ids', async (req: Request, res: Response) => {
+  try {
+    const walletAddress = req.headers['x-wallet-address'] as string;
+
+    if (!walletAddress) {
+      return res.json({ videoIds: [] }); // Return empty array if not logged in
+    }
+
+    const user = await db.getUserByWallet(walletAddress);
+    if (!user) {
+      return res.json({ videoIds: [] });
+    }
+
+    const videoAccess = await db.getUserVideoAccess(user.id);
+    const videoIds = videoAccess.map((va) => va.videoId);
+
+    res.json({ videoIds });
+  } catch (error) {
+    console.error('Error fetching owned video IDs:', error);
+    res.json({ videoIds: [] }); // Return empty array on error
+  }
+});
+
+/**
  * PUT /api/users/update-profile
  * Update user profile (username and profile picture)
  */
@@ -206,6 +234,110 @@ router.put('/update-profile', upload.single('profilePicture'), async (req: Reque
     const walletAddress = req.headers['x-wallet-address'] as string;
     const { username } = req.body;
     const file = req.file;
+
+    console.log('📝 Update profile request:');
+    console.log('   Wallet:', walletAddress);
+    console.log('   Username:', username);
+    console.log('   Has file:', !!file);
+
+    if (!walletAddress) {
+      return res.status(400).json({ error: 'Wallet address required' });
+    }
+
+    const user = await db.getUserByWallet(walletAddress);
+    if (!user) {
+      console.error('User not found for wallet:', walletAddress);
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    console.log('   User found:', user.id);
+
+    let profilePictureUrl = user.profilePictureUrl;
+
+    // Upload profile picture if provided
+    if (file) {
+      try {
+        const fileName = `${user.id}-${Date.now()}.${file.mimetype.split('/')[1]}`;
+        const filePath = `profile-pictures/${fileName}`;
+
+        // Try uploading to Supabase Storage first
+        const { data, error } = await supabase.storage
+          .from('profile-pictures')
+          .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+            upsert: true,
+          });
+
+        if (error) {
+          console.warn('⚠️  Supabase storage not available, using base64 fallback');
+          // Fallback: Store as base64 data URL
+          const base64 = file.buffer.toString('base64');
+          profilePictureUrl = `data:${file.mimetype};base64,${base64}`;
+          console.log('✅ Profile picture stored as base64');
+        } else {
+          // Get public URL from Supabase storage
+          const { data: urlData } = supabase.storage
+            .from('profile-pictures')
+            .getPublicUrl(filePath);
+
+          profilePictureUrl = urlData.publicUrl;
+          console.log('✅ Profile picture uploaded to Supabase:', profilePictureUrl);
+        }
+      } catch (uploadError) {
+        console.warn('⚠️  Upload error, using base64 fallback:', uploadError);
+        // Fallback: Store as base64 data URL
+        try {
+          const base64 = file.buffer.toString('base64');
+          profilePictureUrl = `data:${file.mimetype};base64,${base64}`;
+          console.log('✅ Profile picture stored as base64');
+        } catch (base64Error) {
+          console.error('❌ Failed to process profile picture:', base64Error);
+          // Keep the old profile picture URL
+        }
+      }
+    }
+
+    // Update user profile in database
+    console.log('   Updating database with:', {
+      username: username || user.username,
+      profilePictureUrl
+    });
+
+    const updatedUser = await db.updateUser(user.id, {
+      username: username || user.username,
+      profilePictureUrl,
+    });
+
+    if (!updatedUser) {
+      console.error('Failed to update user in database');
+      return res.status(500).json({ error: 'Failed to update profile in database' });
+    }
+
+    console.log('   ✅ Profile updated successfully!');
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        id: updatedUser.id,
+        wallet_address: updatedUser.walletAddress,
+        username: updatedUser.username,
+        profile_picture_url: updatedUser.profilePictureUrl,
+        is_creator: updatedUser.isCreator,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+/**
+ * GET /api/users/creator-videos
+ * Get all videos created by the user (creator) with earnings
+ */
+router.get('/creator-videos', async (req: Request, res: Response) => {
+  try {
+    const walletAddress = req.headers['x-wallet-address'] as string;
 
     if (!walletAddress) {
       return res.status(400).json({ error: 'Wallet address required' });
@@ -216,58 +348,33 @@ router.put('/update-profile', upload.single('profilePicture'), async (req: Reque
       return res.status(404).json({ error: 'User not found' });
     }
 
-    let profilePictureUrl = user.profilePictureUrl;
-
-    // Upload profile picture to Supabase Storage if provided
-    if (file) {
-      try {
-        const fileName = `${user.id}-${Date.now()}.${file.mimetype.split('/')[1]}`;
-        const filePath = `profile-pictures/${fileName}`;
-
-        // Upload to Supabase Storage
-        const { data, error } = await supabase.storage
-          .from('profile-pictures')
-          .upload(filePath, file.buffer, {
-            contentType: file.mimetype,
-            upsert: true,
-          });
-
-        if (error) {
-          console.error('Supabase upload error:', error);
-          throw error;
-        }
-
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from('profile-pictures')
-          .getPublicUrl(filePath);
-
-        profilePictureUrl = urlData.publicUrl;
-      } catch (uploadError) {
-        console.error('Error uploading profile picture:', uploadError);
-        return res.status(500).json({ error: 'Failed to upload profile picture' });
-      }
+    if (!user.isCreator) {
+      return res.status(403).json({ error: 'User is not a creator' });
     }
 
-    // Update user profile in database
-    const updatedUser = await db.updateUser(user.id, {
-      username: username || user.username,
-      profilePictureUrl,
-    });
+    const videos = await db.getVideosByCreator(user.id);
+
+    // Calculate earnings for each video from payments
+    const videosWithEarnings = await Promise.all(
+      videos.map(async (video: any) => {
+        const payments = await db.getPaymentsByVideo(video.id);
+        const earnings = payments
+          .filter((p: any) => p.status === 'verified')
+          .reduce((sum: number, p: any) => sum + (p.creatorAmount || 0), 0);
+
+        return {
+          ...video,
+          earnings: earnings,
+        };
+      })
+    );
 
     res.json({
-      message: 'Profile updated successfully',
-      user: {
-        id: updatedUser!.id,
-        wallet_address: updatedUser!.walletAddress,
-        username: updatedUser!.username,
-        profile_picture_url: updatedUser!.profilePictureUrl,
-        is_creator: updatedUser!.isCreator,
-      },
+      videos: videosWithEarnings || [],
     });
   } catch (error) {
-    console.error('Error updating profile:', error);
-    res.status(500).json({ error: 'Failed to update profile' });
+    console.error('Error fetching creator videos:', error);
+    res.status(500).json({ error: 'Failed to fetch creator videos' });
   }
 });
 
