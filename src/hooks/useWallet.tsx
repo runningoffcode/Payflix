@@ -58,6 +58,8 @@ export function useWallet() {
       address: wallet.address,
       chainType: wallet.chainType,
       walletClientType: wallet.walletClientType,
+      linked: wallet.linked ?? true,
+      hasConnect: typeof wallet.connect === 'function',
       hasSignTransaction: typeof wallet.signTransaction === 'function',
       hasSignAndSendTransaction: typeof wallet.signAndSendTransaction === 'function',
     }));
@@ -70,7 +72,7 @@ export function useWallet() {
       return true;
     }
 
-    console.log('🔐 Wallet signer missing — attempting Privy wallet link...', {
+    console.log('🔐 Wallet signer missing — starting Privy wallet flow...', {
       authenticated,
       walletAddress,
     });
@@ -84,16 +86,25 @@ export function useWallet() {
       }
     }
 
-    if (typeof linkWallet !== 'function') {
-      console.warn('Privy linkWallet helper not available');
-      return false;
-    }
+    const existingSolanaWallet = wallets?.find(
+      (w: any) => w.walletClientType === 'solana' || w.chainType === 'solana'
+    );
 
-    try {
-      await linkWallet({ chain: 'solana' });
-    } catch (error) {
-      console.warn('Privy wallet link failed', error);
-      return false;
+    if (!existingSolanaWallet) {
+      if (typeof linkWallet !== 'function') {
+        console.warn('Privy linkWallet helper not available');
+        return false;
+      }
+
+      try {
+        console.log('🔗 Linking new Solana wallet via Privy...');
+        await linkWallet({ chain: 'solana' });
+      } catch (error) {
+        console.warn('Privy wallet link failed', error);
+        return false;
+      }
+    } else {
+      console.log('🔗 Solana wallet already linked, skipping link step');
     }
 
     await new Promise((resolve) => setTimeout(resolve, 150));
@@ -101,14 +112,44 @@ export function useWallet() {
     const latestWallet =
       wallets?.find((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana') || null;
 
-    const hasSigner =
-      !!latestWallet?.signTransaction || !!latestWallet?.signAndSendTransaction;
+    if (!latestWallet) {
+      console.warn('❌ No Solana wallet found after link attempt');
+      return false;
+    }
 
-    console.log('🔐 Wallet signer availability after link attempt:', {
+    try {
+      const solanaProvider = await latestWallet.getSolanaProvider?.();
+      if (solanaProvider?.connect) {
+        console.log('🔌 Connecting Solana provider...');
+        await solanaProvider.connect({ onlyIfTrusted: false });
+      }
+
+      if (latestWallet.connect) {
+        console.log('🔌 Connecting Privy wallet client...');
+        await latestWallet.connect();
+      }
+    } catch (error) {
+      console.warn('❌ Wallet connect rejected or failed', error);
+      return false;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const refreshedWallet =
+      wallets?.find((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana') || null;
+
+    const hasSigner =
+      !!refreshedWallet?.signTransaction || !!refreshedWallet?.signAndSendTransaction;
+
+    console.log('🔐 Wallet signer availability after connect:', {
       hasSigner,
-      hasSignTransaction: !!latestWallet?.signTransaction,
-      hasSignAndSendTransaction: !!latestWallet?.signAndSendTransaction,
+      hasSignTransaction: !!refreshedWallet?.signTransaction,
+      hasSignAndSendTransaction: !!refreshedWallet?.signAndSendTransaction,
     });
+
+    if (!hasSigner) {
+      console.warn('⚠️  Wallet connected but signer still unavailable');
+    }
 
     return hasSigner;
   }, [authenticated, linkWallet, login, sendTransaction, signTransaction, walletAddress, wallets]);
