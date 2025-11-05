@@ -255,12 +255,15 @@ router.post('/create', async (req, res) => {
  */
 router.post('/confirm', async (req, res) => {
   try {
-    const { sessionId, approvalSignature } = req.body;
+    const { sessionId, approvalTransaction, transactionSignature } = req.body;
 
-    if (!sessionId || !approvalSignature) {
+    if (
+      !sessionId ||
+      (!approvalTransaction && !transactionSignature)
+    ) {
       return res.status(400).json({
         error: 'Missing required fields',
-        message: 'sessionId and approvalSignature are required',
+        message: 'sessionId and either approvalTransaction or transactionSignature are required',
       });
     }
 
@@ -283,60 +286,75 @@ router.post('/confirm', async (req, res) => {
 
     // CRITICAL FIX: Broadcast the signed transaction!
     // The frontend sends us the serialized signed transaction, not the signature
-    let transactionSignature: string;
+    let finalizedSignature = transactionSignature as string | undefined;
 
-    try {
-      console.log('📡 Broadcasting approval transaction to blockchain...');
+    // If the frontend provided the serialized transaction, broadcast it and confirm
+    if (approvalTransaction) {
+      try {
+        console.log('📡 Broadcasting approval transaction to blockchain...');
 
-      // Deserialize the signed transaction
-      const transactionBuffer = Buffer.from(approvalSignature, 'base64');
-      const transaction = Transaction.from(transactionBuffer);
+        const transactionBuffer = Buffer.from(approvalTransaction, 'base64');
+        const transaction = Transaction.from(transactionBuffer);
 
-      // Send the transaction immediately (don't update blockhash - it would invalidate the signature!)
-      transactionSignature = await connection.sendRawTransaction(transaction.serialize(), {
-        skipPreflight: false,
-        preflightCommitment: 'confirmed',
-        maxRetries: 3,
-      });
+        finalizedSignature = await connection.sendRawTransaction(transaction.serialize(), {
+          skipPreflight: false,
+          preflightCommitment: 'confirmed',
+          maxRetries: 3,
+        });
 
-      console.log(`   Transaction sent: ${transactionSignature}`);
+        console.log(`   Transaction sent: ${finalizedSignature}`);
 
-      // Wait for confirmation
-      console.log('⏳ Waiting for confirmation...');
-      const confirmation = await connection.confirmTransaction(transactionSignature, 'confirmed');
+        console.log('⏳ Waiting for confirmation...');
+        const confirmation = await connection.confirmTransaction(finalizedSignature, 'confirmed');
+
+        if (confirmation.value.err) {
+          throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+        }
+
+        console.log('✅ Transaction confirmed on blockchain!');
+        console.log(`   Delegate approval is now active`);
+      } catch (error: any) {
+        console.error('❌ Failed to broadcast transaction:', error);
+
+        if (error.message && error.message.includes('already been processed')) {
+          console.log('⚠️  Transaction was already processed - checking on-chain status...');
+          return res.status(400).json({
+            error: 'Transaction Already Processed',
+            message: 'This transaction was already completed. Please refresh the page and try again if needed.',
+          });
+        }
+
+        if (error.message && (error.message.includes('Blockhash not found') || error.message.includes('block height exceeded'))) {
+          console.log('⚠️  Transaction blockhash expired - user took too long to sign');
+          return res.status(400).json({
+            error: 'Transaction Expired',
+            message: 'Transaction expired. Please try again and sign more quickly after clicking \"Add Credits\".',
+          });
+        }
+
+        return res.status(400).json({
+          error: 'Transaction Failed',
+          message: error.message || 'Failed to broadcast approval transaction',
+        });
+      }
+    } else if (finalizedSignature) {
+      // Otherwise confirm the signature that was already broadcast client-side
+      console.log(`📡 Confirming previously broadcast transaction: ${finalizedSignature}`);
+      const confirmation = await connection.confirmTransaction(finalizedSignature, 'confirmed');
 
       if (confirmation.value.err) {
-        throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+        console.error('❌ Transaction confirmation failed:', confirmation.value.err);
+        return res.status(400).json({
+          error: 'Transaction Failed',
+          message: `Transaction failed: ${JSON.stringify(confirmation.value.err)}`,
+        });
       }
 
       console.log('✅ Transaction confirmed on blockchain!');
-      console.log(`   Delegate approval is now active`);
+    }
 
-    } catch (error: any) {
-      console.error('❌ Failed to broadcast transaction:', error);
-
-      // Check if it's a duplicate transaction error
-      if (error.message && error.message.includes('already been processed')) {
-        console.log('⚠️  Transaction was already processed - checking on-chain status...');
-        return res.status(400).json({
-          error: 'Transaction Already Processed',
-          message: 'This transaction was already completed. Please refresh the page and try again if needed.',
-        });
-      }
-
-      // Check if it's a blockhash expiration error
-      if (error.message && (error.message.includes('Blockhash not found') || error.message.includes('block height exceeded'))) {
-        console.log('⚠️  Transaction blockhash expired - user took too long to sign');
-        return res.status(400).json({
-          error: 'Transaction Expired',
-          message: 'Transaction expired. Please try again and sign more quickly after clicking "Add Credits".',
-        });
-      }
-
-      return res.status(400).json({
-        error: 'Transaction Failed',
-        message: error.message || 'Failed to broadcast approval transaction',
-      });
+    if (!finalizedSignature) {
+      throw new Error('Missing transaction signature after confirmation');
     }
 
     // Save or update session in database
@@ -357,7 +375,7 @@ router.post('/confirm', async (req, res) => {
         sessionId,
         newApprovedAmount,
         newRemainingAmount,
-        transactionSignature,
+        finalizedSignature,
         pendingSession.expiresAt
       );
 
@@ -371,7 +389,7 @@ router.post('/confirm', async (req, res) => {
         sessionPublicKey: pendingSession.sessionKeypair.publicKey.toBase58(),
         sessionPrivateKeyEncrypted: pendingSession.encryptedPrivateKey,
         approvedAmount: pendingSession.approvedAmount,
-        approvalSignature: transactionSignature,
+        approvalSignature: finalizedSignature,
         expiresAt: pendingSession.expiresAt,
       });
 

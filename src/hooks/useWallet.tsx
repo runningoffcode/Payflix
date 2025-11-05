@@ -1,6 +1,6 @@
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { PublicKey, Connection, Transaction } from '@solana/web3.js';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 
 /**
  * Compatibility hook that provides the same interface as @solana/wallet-adapter-react's useWallet
@@ -47,6 +47,20 @@ export function useWallet() {
     ? async (message: Uint8Array) => solanaWallet.signMessage(message)
     : undefined;
 
+  const ensureWalletSigner = useCallback(async () => {
+    if (signTransaction || sendTransaction) {
+      return true;
+    }
+
+    try {
+      await login();
+    } catch (error) {
+      console.warn('Privy login attempt failed while requesting signer', error);
+    }
+
+    return false;
+  }, [login, signTransaction, sendTransaction]);
+
   return {
     publicKey,
     walletAddress,
@@ -62,6 +76,7 @@ export function useWallet() {
     signTransaction,
     signAllTransactions,
     signMessage,
+    ensureWalletSigner,
   };
 }
 
@@ -69,14 +84,10 @@ export function useWallet() {
  * Compatibility hook for useConnection
  */
 export function useConnection() {
-  // Using Helius RPC for better performance and token metadata
-  const rpcUrl = 'https://devnet.helius-rpc.com/?api-key=84db05e3-e9ad-479e-923e-80be54938a18';
+  const rpcUrl = import.meta.env.VITE_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
   console.log('🔗 RPC URL being used:', rpcUrl);
 
-  const connection = useMemo(
-    () => new Connection(rpcUrl, 'confirmed'),
-    []
-  );
+  const connection = useMemo(() => new Connection(rpcUrl, 'confirmed'), [rpcUrl]);
 
   return { connection };
 }

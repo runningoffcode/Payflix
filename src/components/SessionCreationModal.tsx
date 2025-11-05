@@ -4,7 +4,7 @@
  * This enables seamless payments without popups for 24 hours
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '../hooks/useWallet';
 import { Connection, Transaction, PublicKey } from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
@@ -24,7 +24,7 @@ export default function SessionCreationModal({
   onSessionCreated,
   hasExistingSession = false,
 }: SessionCreationModalProps) {
-  const { publicKey, signTransaction, sendTransaction } = useWallet();
+  const { publicKey, signTransaction, sendTransaction, ensureWalletSigner } = useWallet();
   const [approvedAmount, setApprovedAmount] = useState<number>(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,66 +34,65 @@ export default function SessionCreationModal({
 
   const quickAmounts = [5, 10, 20, 50, 100];
 
-  // Fetch wallet balance when modal opens
-  useEffect(() => {
-    const fetchWalletBalance = async (retryCount = 0) => {
-      if (!isOpen || !publicKey) {
-        console.log('⚠️ Modal not open or no wallet connected');
+  const fetchWalletBalance = useCallback(async () => {
+    if (!isOpen || !publicKey) {
+      console.log('⚠️ Modal not open or no wallet connected');
+      return;
+    }
+
+    setFetchingBalance(true);
+    console.log(`🔍 Fetching wallet balance for MAX button (HIGH priority)...`);
+
+    try {
+      const rpcUrl = import.meta.env.VITE_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+      const connection = new Connection(rpcUrl, 'confirmed');
+
+      const USDC_MINT = new PublicKey(
+        import.meta.env.VITE_USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'
+      );
+
+      // Get user's USDC token account
+      const userUsdcAccount = await getAssociatedTokenAddress(
+        USDC_MINT,
+        publicKey
+      );
+
+      console.log('   📍 User USDC account:', userUsdcAccount.toBase58());
+
+      // Queue account info fetch with HIGH priority (user is waiting for MAX button)
+      const accountInfo = await queueRPCRequest(
+        () => connection.getAccountInfo(userUsdcAccount),
+        RPC_PRIORITY.HIGH
+      );
+
+      if (!accountInfo) {
+        console.log('   ⚠️ No USDC account found - balance is 0');
+        setWalletBalance(0);
+        setFetchingBalance(false);
         return;
       }
 
-      setFetchingBalance(true);
-      console.log(`🔍 Fetching wallet balance for MAX button (HIGH priority)...`);
+      // Queue balance fetch with HIGH priority
+      const balance = await queueRPCRequest(
+        () => connection.getTokenAccountBalance(userUsdcAccount),
+        RPC_PRIORITY.HIGH
+      );
+      const usdcBalance = parseFloat(balance.value.uiAmountString || '0');
 
-      try {
-        // Connect using Helius RPC
-        const connection = new Connection('https://devnet.helius-rpc.com/?api-key=84db05e3-e9ad-479e-923e-80be54938a18', 'confirmed');
-
-        // USDC Mint address - custom test token
-        const USDC_MINT = new PublicKey(
-          import.meta.env.VITE_USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'
-        );
-
-        // Get user's USDC token account
-        const userUsdcAccount = await getAssociatedTokenAddress(
-          USDC_MINT,
-          publicKey
-        );
-
-        console.log('   📍 User USDC account:', userUsdcAccount.toBase58());
-
-        // Queue account info fetch with HIGH priority (user is waiting for MAX button)
-        const accountInfo = await queueRPCRequest(
-          () => connection.getAccountInfo(userUsdcAccount),
-          RPC_PRIORITY.HIGH
-        );
-
-        if (!accountInfo) {
-          console.log('   ⚠️ No USDC account found - balance is 0');
-          setWalletBalance(0);
-          setFetchingBalance(false);
-          return;
-        }
-
-        // Queue balance fetch with HIGH priority
-        const balance = await queueRPCRequest(
-          () => connection.getTokenAccountBalance(userUsdcAccount),
-          RPC_PRIORITY.HIGH
-        );
-        const usdcBalance = parseFloat(balance.value.uiAmountString || '0');
-
-        console.log(`   ✅ Wallet balance fetched: ${usdcBalance} USDC`);
-        setWalletBalance(usdcBalance);
-        setFetchingBalance(false);
-      } catch (error: any) {
-        console.error('   ❌ Error fetching wallet balance:', error?.message || error);
-        setWalletBalance(null);
-        setFetchingBalance(false);
-      }
-    };
-
-    fetchWalletBalance();
+      console.log(`   ✅ Wallet balance fetched: ${usdcBalance} USDC`);
+      setWalletBalance(usdcBalance);
+      setFetchingBalance(false);
+    } catch (error: any) {
+      console.error('   ❌ Error fetching wallet balance:', error?.message || error);
+      setWalletBalance(null);
+      setFetchingBalance(false);
+    }
   }, [isOpen, publicKey]);
+
+  // Fetch wallet balance when modal opens
+  useEffect(() => {
+    fetchWalletBalance();
+  }, [fetchWalletBalance]);
 
   // Function to set max deposit
   const handleMaxDeposit = () => {
@@ -142,8 +141,16 @@ export default function SessionCreationModal({
       return;
     }
 
+    const hasSigner = await ensureWalletSigner();
+    if (!hasSigner) {
+      setError('Please connect a Solana wallet (Phantom or Solflare) in the Privy modal.');
+      setTimeout(() => setError(null), 4000);
+      return;
+    }
+
     if (!signTransaction && !sendTransaction) {
-      setError('Connected wallet cannot sign transactions');
+      setError('Unable to access wallet signing capabilities. Please reconnect your wallet.');
+      setTimeout(() => setError(null), 4000);
       return;
     }
 
@@ -188,16 +195,21 @@ export default function SessionCreationModal({
       const transactionBuffer = Buffer.from(approvalTransaction, 'base64');
       const transaction = Transaction.from(transactionBuffer);
 
-      let signatureBase64: string | null = null;
-      let signatureStr: string | null = null;
+      let signedTransactionBase64: string | null = null;
+      let transactionSignature: string | null = null;
 
       if (signTransaction) {
         const signedTransaction = await signTransaction(transaction);
-        signatureBase64 = signedTransaction.serialize().toString('base64');
-        signatureStr = signedTransaction.signature?.toString('base64') || null;
+        signedTransactionBase64 = signedTransaction.serialize().toString('base64');
+        transactionSignature = signedTransaction.signature?.toString('base64') || null;
       } else if (sendTransaction) {
         console.log('✍️  Signing via signAndSendTransaction...');
-        signatureStr = await sendTransaction(transaction, { skipPreflight: false });
+        transactionSignature = await sendTransaction(transaction, { skipPreflight: false });
+        signedTransactionBase64 = null; // wallet already broadcasted the transaction
+      }
+
+      if (!signedTransactionBase64 && !transactionSignature) {
+        throw new Error('Failed to sign approval transaction');
       }
 
       // Step 3: Confirm session with signature
@@ -207,8 +219,8 @@ export default function SessionCreationModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId,
-          approvalSignature: signatureBase64 || signatureStr,
-          transactionSignature: signatureStr,
+          approvalTransaction: signedTransactionBase64,
+          transactionSignature,
         }),
       });
 
@@ -226,6 +238,9 @@ export default function SessionCreationModal({
 
       console.log('🎉 Session confirmed! Seamless payments enabled.');
       setStep('success');
+
+      window.dispatchEvent(new Event('sessionUpdated'));
+      await fetchWalletBalance();
 
       // Close modal after showing success message
       setTimeout(() => {

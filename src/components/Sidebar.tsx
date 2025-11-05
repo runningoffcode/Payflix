@@ -227,6 +227,18 @@ export default function Sidebar() {
     }
   }, [showWalletDropdown, connected, walletAddress]);
 
+  useEffect(() => {
+    const handleSessionUpdated = () => {
+      if (connected && walletAddress) {
+        fetchSessionBalance();
+        fetchWalletBalance();
+      }
+    };
+
+    window.addEventListener('sessionUpdated', handleSessionUpdated);
+    return () => window.removeEventListener('sessionUpdated', handleSessionUpdated);
+  }, [connected, walletAddress]);
+
   const navItems = [
     { path: '/', icon: 'home', label: 'Home' },
     { path: '/payflix', icon: 'sparkles', label: 'Why PayFlix' },
