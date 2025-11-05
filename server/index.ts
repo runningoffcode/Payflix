@@ -5,6 +5,7 @@ dotenv.config({ override: true });
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import path from 'path';
 import config from './config/index';
 import { db, initializeDatabase } from './database/db-factory';
 
@@ -88,6 +89,19 @@ app.use('/api/storage', storageRoutes);
 app.use('/api/comments', commentsRoutes);
 // TODO: Fix these routes to work with Supabase
 // app.use('/api/creator', creatorRoutes);
+
+const clientBuildPath = path.join(__dirname, '../client');
+
+if (config.nodeEnv === 'production') {
+  app.use(express.static(clientBuildPath));
+
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      return next();
+    }
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+}
 
 // 404 handler
 app.use((req, res) => {
