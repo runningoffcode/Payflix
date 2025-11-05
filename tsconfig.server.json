@@ -5,9 +5,21 @@
     "outDir": "./dist/server",
     "rootDir": "./server",
     "noEmit": false,
-    "lib": ["ES2020"],
-    "types": ["node"]
+    "lib": [
+      "ES2020"
+    ],
+    "types": [
+      "node"
+    ],
+    "moduleResolution": "node16",
+    "allowImportingTsExtensions": false
   },
-  "include": ["server/**/*"],
-  "exclude": ["node_modules", "dist", "src"]
+  "include": [
+    "server/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src"
+  ]
 }
