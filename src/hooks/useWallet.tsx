@@ -10,10 +10,24 @@ export function useWallet() {
   const { user: privyUser, authenticated, ready, login, linkWallet } = usePrivy();
   const { wallets } = useWallets();
 
+  const [linkedWalletOverride, setLinkedWalletOverride] = useState<any>(null);
+  const [walletRefreshNonce, setWalletRefreshNonce] = useState(0);
+
   const solanaWallet = useMemo(() => {
-    if (!wallets || wallets.length === 0) return null;
-    return wallets.find((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana') || null;
-  }, [wallets]);
+    const walletFromHook = wallets?.find(
+      (w: any) => w.walletClientType === 'solana' || w.chainType === 'solana'
+    );
+
+    if (walletFromHook) {
+      return walletFromHook;
+    }
+
+    if (linkedWalletOverride) {
+      return linkedWalletOverride;
+    }
+
+    return null;
+  }, [linkedWalletOverride, walletRefreshNonce, wallets]);
 
   const walletAddress = useMemo(() => {
     if (solanaWallet) {
@@ -86,11 +100,16 @@ export function useWallet() {
       }
     }
 
-    const existingSolanaWallet = wallets?.find(
+    let targetWallet = wallets?.find(
       (w: any) => w.walletClientType === 'solana' || w.chainType === 'solana'
     );
 
-    if (!existingSolanaWallet) {
+    if (!targetWallet && linkedWalletOverride) {
+      targetWallet = linkedWalletOverride;
+      console.log('🔗 Reusing previously linked wallet override');
+    }
+
+    if (!targetWallet) {
       if (typeof linkWallet !== 'function') {
         console.warn('Privy linkWallet helper not available');
         return false;
@@ -98,7 +117,22 @@ export function useWallet() {
 
       try {
         console.log('🔗 Linking new Solana wallet via Privy...');
-        await linkWallet({ chain: 'solana' });
+        const linkResult = await linkWallet({ chain: 'solana', provider: 'phantom' });
+        console.log('🔗 linkWallet result:', linkResult);
+
+        if (linkResult) {
+          if (Array.isArray(linkResult)) {
+            targetWallet = linkResult.find(
+              (w: any) => w?.walletClientType === 'solana' || w?.chainType === 'solana'
+            ) || linkResult[0];
+          } else {
+            targetWallet = linkResult;
+          }
+
+          if (targetWallet) {
+            setLinkedWalletOverride(targetWallet);
+          }
+        }
       } catch (error) {
         console.warn('Privy wallet link failed', error);
         return false;
@@ -107,26 +141,21 @@ export function useWallet() {
       console.log('🔗 Solana wallet already linked, skipping link step');
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 150));
-
-    const latestWallet =
-      wallets?.find((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana') || null;
-
-    if (!latestWallet) {
+    if (!targetWallet) {
       console.warn('❌ No Solana wallet found after link attempt');
       return false;
     }
 
     try {
-      const solanaProvider = await latestWallet.getSolanaProvider?.();
+      const solanaProvider = await targetWallet.getSolanaProvider?.();
       if (solanaProvider?.connect) {
         console.log('🔌 Connecting Solana provider...');
         await solanaProvider.connect({ onlyIfTrusted: false });
       }
 
-      if (latestWallet.connect) {
+      if (targetWallet.connect) {
         console.log('🔌 Connecting Privy wallet client...');
-        await latestWallet.connect();
+        await targetWallet.connect();
       }
     } catch (error) {
       console.warn('❌ Wallet connect rejected or failed', error);
@@ -135,8 +164,11 @@ export function useWallet() {
 
     await new Promise((resolve) => setTimeout(resolve, 150));
 
+    setWalletRefreshNonce((nonce) => nonce + 1);
+
     const refreshedWallet =
-      wallets?.find((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana') || null;
+      wallets?.find((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana') ||
+      targetWallet;
 
     const hasSigner =
       !!refreshedWallet?.signTransaction || !!refreshedWallet?.signAndSendTransaction;
@@ -152,7 +184,16 @@ export function useWallet() {
     }
 
     return hasSigner;
-  }, [authenticated, linkWallet, login, sendTransaction, signTransaction, walletAddress, wallets]);
+  }, [
+    authenticated,
+    linkWallet,
+    linkedWalletOverride,
+    login,
+    sendTransaction,
+    signTransaction,
+    walletAddress,
+    wallets,
+  ]);
 
   return {
     publicKey,
