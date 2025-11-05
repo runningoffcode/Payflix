@@ -6,7 +6,8 @@ import { usePrivy, useWallets } from '@privy-io/react-auth';
  * and caches the signer so we stop re-opening the Privy modal.
  */
 export function useExternalSigner() {
-  const { linkWallet } = usePrivy();
+  const privy = usePrivy() as any;
+  const { linkWallet, wallets: privyWalletsApi } = privy;
   const walletsContext = useWallets() as {
     wallets: any[];
     refresh?: () => Promise<void>;
@@ -36,12 +37,28 @@ export function useExternalSigner() {
     if (canSign(signer)) return signer;
 
     setBusy(true);
+
+    let linkedWallet: any | null = null;
+
     try {
-      await linkWallet?.({ chain: 'solana' });
+      linkedWallet = await linkWallet?.({ chain: 'solana' });
+      if (canSign(linkedWallet)) {
+        try {
+          await linkedWallet.connect?.();
+        } catch (error) {
+          console.warn('⚠️  External wallet connect warning:', error);
+        }
+        setSigner(linkedWallet);
+        return linkedWallet;
+      }
 
       const MAX_ATTEMPTS = 10;
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        const candidate = findSigner(walletsRef.current);
+
+        const candidate =
+          findSigner(walletsRef.current) ||
+          findSigner(privyWalletsApi?.list ? await privyWalletsApi.list() : undefined);
+
         if (candidate) {
           try {
             await candidate.connect?.();
@@ -64,6 +81,8 @@ export function useExternalSigner() {
       }
 
       throw new Error('External wallet did not expose a signer. Approve in Phantom and try again.');
+    } catch (error) {
+      throw error;
     } finally {
       setBusy(false);
     }
