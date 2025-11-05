@@ -9,6 +9,7 @@ import UnlockButton from '../components/UnlockButton';
 import UsdcIcon from '../components/icons/UsdcIcon';
 import CommentSection from '../components/CommentSection';
 import bs58 from 'bs58';
+import { usdcMintPublicKey } from '../config/solana';
 
 interface Video {
   id: string;
@@ -32,7 +33,7 @@ interface CreatorProfile {
 }
 
 // USDC Mint Address on Devnet
-const USDC_MINT = new PublicKey(import.meta.env.VITE_USDC_MINT_ADDRESS || '9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2');
+const USDC_MINT = usdcMintPublicKey();
 
 export default function VideoPlayer() {
   const { id } = useParams<{ id: string }>();

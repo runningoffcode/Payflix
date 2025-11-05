@@ -3,6 +3,7 @@ import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 import { motion, AnimatePresence } from 'framer-motion';
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
+import { usdcMintPublicKey } from '../config/solana';
 
 /**
  * Wallet Balance Display - Bottom Left
@@ -42,7 +43,7 @@ export default function WalletBalance() {
   const [loading, setLoading] = useState(false);
 
   // USDC Mint Address (Devnet)
-  const USDC_MINT = new PublicKey(import.meta.env.VITE_USDC_MINT_ADDRESS || '9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2');
+  const USDC_MINT = usdcMintPublicKey();
 
   useEffect(() => {
     if (connected && publicKey) {

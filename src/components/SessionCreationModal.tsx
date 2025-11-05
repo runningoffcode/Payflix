@@ -6,10 +6,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '../hooks/useWallet';
-import { Connection, Transaction, PublicKey } from '@solana/web3.js';
+import { Connection, Transaction } from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { GradientButton } from './ui/GradientButton';
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
+import { useExternalSigner } from '../hooks/useExternalSigner';
+import { usdcMintPublicKey } from '../config/solana';
 
 interface SessionCreationModalProps {
   isOpen: boolean;
@@ -24,7 +26,8 @@ export default function SessionCreationModal({
   onSessionCreated,
   hasExistingSession = false,
 }: SessionCreationModalProps) {
-  const { publicKey, signTransaction, sendTransaction, ensureWalletSigner } = useWallet();
+  const { publicKey, signTransaction, sendTransaction } = useWallet();
+  const { signer: externalSigner, busy: externalBusy, connectExternal } = useExternalSigner();
   const [approvedAmount, setApprovedAmount] = useState<number>(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,9 +50,7 @@ export default function SessionCreationModal({
       const rpcUrl = import.meta.env.VITE_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
       const connection = new Connection(rpcUrl, 'confirmed');
 
-      const USDC_MINT = new PublicKey(
-        import.meta.env.VITE_USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'
-      );
+      const USDC_MINT = usdcMintPublicKey();
 
       // Get user's USDC token account
       const userUsdcAccount = await getAssociatedTokenAddress(
@@ -133,6 +134,55 @@ export default function SessionCreationModal({
     }
   }, [isOpen]);
 
+  const hasEmbeddedSigner = !!signTransaction || !!sendTransaction;
+  const hasExternalSigner =
+    !!externalSigner &&
+    (typeof externalSigner.signTransaction === 'function' ||
+      typeof externalSigner.signAndSendTransaction === 'function');
+
+  const resolveSignerFns = useCallback(async () => {
+    if (hasEmbeddedSigner) {
+      return {
+        signTransaction,
+        sendTransaction,
+      };
+    }
+
+    if (hasExternalSigner) {
+      return {
+        signTransaction: externalSigner?.signTransaction
+          ? async (tx: Transaction) => externalSigner.signTransaction(tx)
+          : undefined,
+        sendTransaction: externalSigner?.signAndSendTransaction
+          ? async (tx: Transaction, options?: any) =>
+              externalSigner.signAndSendTransaction(tx, options)
+          : undefined,
+      };
+    }
+
+    const linkedSigner = await connectExternal();
+    if (linkedSigner?.signTransaction || linkedSigner?.signAndSendTransaction) {
+      return {
+        signTransaction: linkedSigner.signTransaction
+          ? async (tx: Transaction) => linkedSigner.signTransaction(tx)
+          : undefined,
+        sendTransaction: linkedSigner.signAndSendTransaction
+          ? async (tx: Transaction, options?: any) =>
+              linkedSigner.signAndSendTransaction(tx, options)
+          : undefined,
+      };
+    }
+
+    return null;
+  }, [
+    connectExternal,
+    externalSigner,
+    hasEmbeddedSigner,
+    hasExternalSigner,
+    sendTransaction,
+    signTransaction,
+  ]);
+
   if (!isOpen) return null;
 
   const handleCreateSession = async () => {
@@ -141,15 +191,22 @@ export default function SessionCreationModal({
       return;
     }
 
-    const hasSigner = await ensureWalletSigner();
-    if (!hasSigner) {
-      setError('Please connect a Solana wallet (Phantom or Solflare) in the Privy modal.');
+    let signerFns: {
+      signTransaction?: (tx: Transaction) => Promise<Transaction>;
+      sendTransaction?: (tx: Transaction, options?: any) => Promise<string>;
+    } | null = null;
+
+    try {
+      signerFns = await resolveSignerFns();
+    } catch (error) {
+      console.error('❌ Failed to connect external signer:', error);
+      setError('Wallet connection was canceled. Please approve in Phantom and try again.');
       setTimeout(() => setError(null), 4000);
       return;
     }
 
-    if (!signTransaction && !sendTransaction) {
-      setError('Unable to access wallet signing capabilities. Please reconnect your wallet.');
+    if (!signerFns || (!signerFns.signTransaction && !signerFns.sendTransaction)) {
+      setError('Connect Phantom (or Backpack) to deposit USDC.');
       setTimeout(() => setError(null), 4000);
       return;
     }
@@ -198,13 +255,13 @@ export default function SessionCreationModal({
       let signedTransactionBase64: string | null = null;
       let transactionSignature: string | null = null;
 
-      if (signTransaction) {
-        const signedTransaction = await signTransaction(transaction);
+      if (signerFns.signTransaction) {
+        const signedTransaction = await signerFns.signTransaction(transaction);
         signedTransactionBase64 = signedTransaction.serialize().toString('base64');
         transactionSignature = signedTransaction.signature?.toString('base64') || null;
-      } else if (sendTransaction) {
+      } else if (signerFns.sendTransaction) {
         console.log('✍️  Signing via signAndSendTransaction...');
-        transactionSignature = await sendTransaction(transaction, { skipPreflight: false });
+        transactionSignature = await signerFns.sendTransaction(transaction, { skipPreflight: false });
         signedTransactionBase64 = null; // wallet already broadcasted the transaction
       }
 
@@ -293,6 +350,28 @@ export default function SessionCreationModal({
                   : 'Add credits to your account and watch videos instantly'}
               </p>
             </div>
+
+            {!hasEmbeddedSigner && !hasExternalSigner && (
+              <div className="mb-6 rounded-xl border border-neutral-700 bg-neutral-800/60 p-4 text-left">
+                <p className="text-sm text-neutral-200 font-medium">
+                  Embedded wallet is view-only. Connect Phantom or Backpack to deposit USDC.
+                </p>
+                <button
+                  onClick={async () => {
+                    try {
+                      await connectExternal();
+                    } catch {
+                      setError('Wallet connection was canceled. Please approve in Phantom and try again.');
+                      setTimeout(() => setError(null), 4000);
+                    }
+                  }}
+                  disabled={externalBusy}
+                  className="mt-3 inline-flex items-center rounded-lg bg-purple-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {externalBusy ? 'Waiting for approval…' : 'Connect Phantom'}
+                </button>
+              </div>
+            )}
 
             <div className="bg-neutral-800/50 rounded-xl p-4 mb-6 border border-neutral-700">
               <div className="flex items-start gap-3 mb-3">
