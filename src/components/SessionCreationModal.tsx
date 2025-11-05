@@ -50,7 +50,9 @@ export default function SessionCreationModal({
         const connection = new Connection('https://devnet.helius-rpc.com/?api-key=84db05e3-e9ad-479e-923e-80be54938a18', 'confirmed');
 
         // USDC Mint address - custom test token
-        const USDC_MINT = new PublicKey('9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2');
+        const USDC_MINT = new PublicKey(
+          import.meta.env.VITE_USDC_MINT_ADDRESS || '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'
+        );
 
         // Get user's USDC token account
         const userUsdcAccount = await getAssociatedTokenAddress(
