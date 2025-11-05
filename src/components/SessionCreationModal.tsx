@@ -24,7 +24,7 @@ export default function SessionCreationModal({
   onSessionCreated,
   hasExistingSession = false,
 }: SessionCreationModalProps) {
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey, signTransaction, sendTransaction } = useWallet();
   const [approvedAmount, setApprovedAmount] = useState<number>(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,8 +137,13 @@ export default function SessionCreationModal({
   if (!isOpen) return null;
 
   const handleCreateSession = async () => {
-    if (!publicKey || !signTransaction) {
+    if (!publicKey) {
       setError('Wallet not connected');
+      return;
+    }
+
+    if (!signTransaction && !sendTransaction) {
+      setError('Connected wallet cannot sign transactions');
       return;
     }
 
@@ -183,8 +188,17 @@ export default function SessionCreationModal({
       const transactionBuffer = Buffer.from(approvalTransaction, 'base64');
       const transaction = Transaction.from(transactionBuffer);
 
-      const signedTransaction = await signTransaction(transaction);
-      const signature = signedTransaction.serialize().toString('base64');
+      let signatureBase64: string | null = null;
+      let signatureStr: string | null = null;
+
+      if (signTransaction) {
+        const signedTransaction = await signTransaction(transaction);
+        signatureBase64 = signedTransaction.serialize().toString('base64');
+        signatureStr = signedTransaction.signature?.toString('base64') || null;
+      } else if (sendTransaction) {
+        console.log('✍️  Signing via signAndSendTransaction...');
+        signatureStr = await sendTransaction(transaction, { skipPreflight: false });
+      }
 
       // Step 3: Confirm session with signature
       console.log('✅ Confirming session...');
@@ -193,7 +207,8 @@ export default function SessionCreationModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId,
-          approvalSignature: signature,
+          approvalSignature: signatureBase64 || signatureStr,
+          transactionSignature: signatureStr,
         }),
       });
 
