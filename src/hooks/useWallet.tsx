@@ -1,13 +1,13 @@
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { PublicKey, Connection, Transaction } from '@solana/web3.js';
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 
 /**
  * Compatibility hook that provides the same interface as @solana/wallet-adapter-react's useWallet
  * but uses Privy under the hood
  */
 export function useWallet() {
-  const { user: privyUser, authenticated, ready, login } = usePrivy();
+  const { user: privyUser, authenticated, ready, login, linkWallet } = usePrivy();
   const { wallets } = useWallets();
 
   const solanaWallet = useMemo(() => {
@@ -47,19 +47,71 @@ export function useWallet() {
     ? async (message: Uint8Array) => solanaWallet.signMessage(message)
     : undefined;
 
+  useEffect(() => {
+    if (!wallets || wallets.length === 0) {
+      console.log('🪪 Privy wallets: none connected');
+      return;
+    }
+
+    const snapshot = wallets.map((wallet: any) => ({
+      id: wallet.id,
+      address: wallet.address,
+      chainType: wallet.chainType,
+      walletClientType: wallet.walletClientType,
+      hasSignTransaction: typeof wallet.signTransaction === 'function',
+      hasSignAndSendTransaction: typeof wallet.signAndSendTransaction === 'function',
+    }));
+
+    console.log('🪪 Privy wallets snapshot:', snapshot);
+  }, [wallets]);
+
   const ensureWalletSigner = useCallback(async () => {
     if (signTransaction || sendTransaction) {
       return true;
     }
 
-    try {
-      await login();
-    } catch (error) {
-      console.warn('Privy login attempt failed while requesting signer', error);
+    console.log('🔐 Wallet signer missing — attempting Privy wallet link...', {
+      authenticated,
+      walletAddress,
+    });
+
+    if (!authenticated) {
+      try {
+        await login();
+      } catch (error) {
+        console.warn('Privy login attempt failed while requesting signer', error);
+        return false;
+      }
     }
 
-    return false;
-  }, [login, signTransaction, sendTransaction]);
+    if (typeof linkWallet !== 'function') {
+      console.warn('Privy linkWallet helper not available');
+      return false;
+    }
+
+    try {
+      await linkWallet({ chain: 'solana' });
+    } catch (error) {
+      console.warn('Privy wallet link failed', error);
+      return false;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const latestWallet =
+      wallets?.find((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana') || null;
+
+    const hasSigner =
+      !!latestWallet?.signTransaction || !!latestWallet?.signAndSendTransaction;
+
+    console.log('🔐 Wallet signer availability after link attempt:', {
+      hasSigner,
+      hasSignTransaction: !!latestWallet?.signTransaction,
+      hasSignAndSendTransaction: !!latestWallet?.signAndSendTransaction,
+    });
+
+    return hasSigner;
+  }, [authenticated, linkWallet, login, sendTransaction, signTransaction, walletAddress, wallets]);
 
   return {
     publicKey,
