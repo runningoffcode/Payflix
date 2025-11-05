@@ -48,7 +48,19 @@ export function useExternalSigner() {
       console.log('🔗 Calling linkWallet({ chain: "solana" })...');
       linkedWallet = await linkWallet?.({ chain: 'solana' });
 
-      console.log('   linkWallet returned:', !!linkedWallet);
+      if (linkedWallet) {
+        try {
+          const linkKeys = Object.keys(linkedWallet ?? {});
+          console.log('   linkWallet returned wallet with keys:', linkKeys);
+          console.log('   linkWallet address:', linkedWallet.address || linkedWallet?.wallet?.address || 'unknown');
+        } catch (logError) {
+          console.warn('⚠️  Unable to inspect linkWallet result:', logError);
+        }
+        // Ensure the freshly linked wallet is part of our in-memory snapshot
+        walletsRef.current = [linkedWallet, ...(walletsRef.current || [])];
+      } else {
+        console.log('   linkWallet returned: null/undefined');
+      }
 
       // Wait for Privy to process the link
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -59,6 +71,7 @@ export function useExternalSigner() {
           console.log('🔄 Calling getWallets() after link...');
           const fetchedWallets = await getWallets();
           console.log('   getWallets() returned:', fetchedWallets?.length || 0, 'wallets');
+          walletsRef.current = fetchedWallets || walletsRef.current;
 
           const freshSigner = findSigner(fetchedWallets);
           if (freshSigner) {
@@ -107,9 +120,12 @@ export function useExternalSigner() {
             setSigner(wrappedSigner);
             return wrappedSigner;
           }
+          console.warn('⚠️  getSolanaProvider() returned without signing methods');
         } catch (error) {
           console.warn('⚠️  getSolanaProvider() failed:', error);
         }
+      } else if (linkedWallet) {
+        console.warn('⚠️  getSolanaProvider() not available on linked wallet');
       }
 
       const MAX_ATTEMPTS = 20;
@@ -128,6 +144,12 @@ export function useExternalSigner() {
         if (!candidate && privyWalletsApi?.list) {
           try {
             const apiWallets = await privyWalletsApi.list();
+            if (Array.isArray(apiWallets) && apiWallets.length > 0) {
+              console.log('   📡 privyWalletsApi.list returned', apiWallets.length, 'wallet(s)');
+              walletsRef.current = apiWallets;
+            } else {
+              console.log('   📡 privyWalletsApi.list returned no wallets');
+            }
             candidate = findSigner(apiWallets);
             if (candidate) console.log('✅ Found in privyWalletsApi.list');
           } catch (error) {
@@ -137,6 +159,7 @@ export function useExternalSigner() {
 
         // Source 3: wallets context
         if (!candidate && wallets && wallets.length > 0) {
+          console.log('   Checking wallets context with', wallets.length, 'wallet(s)');
           candidate = findSigner(wallets);
           if (candidate) console.log('✅ Found in wallets context');
         }
