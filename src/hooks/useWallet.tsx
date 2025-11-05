@@ -7,7 +7,15 @@ import { useMemo, useState, useCallback, useEffect } from 'react';
  * but uses Privy under the hood
  */
 export function useWallet() {
-  const { user: privyUser, authenticated, ready, login, linkWallet } = usePrivy();
+  const privy = usePrivy() as any;
+  const {
+    user: privyUser,
+    authenticated,
+    ready,
+    login,
+    linkWallet,
+    getWallets,
+  } = privy;
   const { wallets } = useWallets();
 
   const [linkedWalletOverride, setLinkedWalletOverride] = useState<any>(null);
@@ -100,49 +108,67 @@ export function useWallet() {
       }
     }
 
-    let targetWallet = wallets?.find(
-      (w: any) => w.walletClientType === 'solana' || w.chainType === 'solana'
-    );
+    const resolveWallet = async () => {
+      const candidate = wallets?.find(
+        (w: any) => w.walletClientType === 'solana' || w.chainType === 'solana'
+      );
+      if (candidate) return candidate;
 
-    if (!targetWallet && linkedWalletOverride) {
-      targetWallet = linkedWalletOverride;
-      console.log('🔗 Reusing previously linked wallet override');
-    }
+      if (linkedWalletOverride) return linkedWalletOverride;
 
-    if (!targetWallet) {
-      if (typeof linkWallet !== 'function') {
-        console.warn('Privy linkWallet helper not available');
-        return false;
+      if (typeof getWallets === 'function') {
+        try {
+          console.log('📬 Fetching latest Privy wallets...');
+          const fetched = await getWallets();
+          if (fetched && fetched.length > 0) {
+            const fetchedSolana = fetched.find(
+              (w: any) => w?.walletClientType === 'solana' || w?.chainType === 'solana'
+            ) || fetched[0];
+            if (fetchedSolana) {
+              setLinkedWalletOverride(fetchedSolana);
+              return fetchedSolana;
+            }
+          }
+        } catch (error) {
+          console.warn('Privy getWallets failed', error);
+        }
       }
 
+      return null;
+    };
+
+    let targetWallet = await resolveWallet();
+
+    const embedAccount = privyUser?.linkedAccounts?.find(
+      (acc: any) => acc?.type === 'wallet' && acc?.chainType === 'solana'
+    );
+
+    if (!targetWallet && embedAccount && typeof privy?.linkEmbeddedWallet === 'function') {
+      try {
+        console.log('🔗 Linking embedded Solana wallet via Privy...');
+        await privy.linkEmbeddedWallet({ chain: 'solana' });
+        targetWallet = await resolveWallet();
+      } catch (error) {
+        console.warn('Privy linkEmbeddedWallet failed', error);
+      }
+    }
+
+    if (!targetWallet && typeof linkWallet === 'function') {
       try {
         console.log('🔗 Linking new Solana wallet via Privy...');
-        const linkResult = await linkWallet({ chain: 'solana', provider: 'phantom' });
-        console.log('🔗 linkWallet result:', linkResult);
-
-        if (linkResult) {
-          if (Array.isArray(linkResult)) {
-            targetWallet = linkResult.find(
-              (w: any) => w?.walletClientType === 'solana' || w?.chainType === 'solana'
-            ) || linkResult[0];
-          } else {
-            targetWallet = linkResult;
-          }
-
-          if (targetWallet) {
-            setLinkedWalletOverride(targetWallet);
-          }
-        }
+        await linkWallet({ chain: 'solana' });
+        targetWallet = await resolveWallet();
       } catch (error) {
         console.warn('Privy wallet link failed', error);
         return false;
       }
-    } else {
-      console.log('🔗 Solana wallet already linked, skipping link step');
     }
 
     if (!targetWallet) {
       console.warn('❌ No Solana wallet found after link attempt');
+      if (embedAccount) {
+        console.warn('⚠️ Embedded wallet detected but no signer client available');
+      }
       return false;
     }
 
@@ -188,6 +214,9 @@ export function useWallet() {
     authenticated,
     linkWallet,
     linkedWalletOverride,
+    getWallets,
+    privy,
+    privyUser,
     login,
     sendTransaction,
     signTransaction,
