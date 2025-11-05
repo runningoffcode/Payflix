@@ -26,8 +26,14 @@ export function useExternalSigner() {
 
   const findSigner = (candidates: any[]): any | null => {
     if (!candidates) return null;
+
+    const isSolanaWallet = (wallet: any) =>
+      wallet?.walletClientType === 'solana' ||
+      wallet?.chain === 'solana' ||
+      wallet?.chainType === 'solana';
+
     return (
-      candidates.find((w: any) => canSign(w) && (w.walletClientType === 'solana' || w.chain === 'solana')) ||
+      candidates.find((w: any) => canSign(w) && isSolanaWallet(w)) ||
       candidates.find((w: any) => canSign(w))
     );
   };
