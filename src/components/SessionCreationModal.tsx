@@ -222,8 +222,8 @@ export default function SessionCreationModal({
     }
 
     if (!signerFns || (!signerFns.signTransaction && !signerFns.sendTransaction)) {
-      setError('Connect Phantom (or Backpack) to deposit USDC.');
-      setTimeout(() => setError(null), 4000);
+      setError('Wallet not ready. Try: 1) Refresh page 2) Reconnect Phantom 3) Retry deposit');
+      setTimeout(() => setError(null), 5000);
       return;
     }
 

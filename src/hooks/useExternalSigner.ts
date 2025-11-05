@@ -7,7 +7,7 @@ import { usePrivy, useWallets } from '@privy-io/react-auth';
  */
 export function useExternalSigner() {
   const privy = usePrivy() as any;
-  const { linkWallet, wallets: privyWalletsApi } = privy;
+  const { linkWallet, getWallets, wallets: privyWalletsApi } = privy;
   const walletsContext = useWallets() as {
     wallets: any[];
     refresh?: () => Promise<void>;
@@ -49,41 +49,100 @@ export function useExternalSigner() {
       linkedWallet = await linkWallet?.({ chain: 'solana' });
 
       console.log('   linkWallet returned:', !!linkedWallet);
-      if (linkedWallet) {
-        console.log('   linkedWallet canSign:', canSign(linkedWallet));
+
+      // Wait for Privy to process the link
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Call getWallets() to force fetch latest wallets
+      if (typeof getWallets === 'function') {
+        try {
+          console.log('🔄 Calling getWallets() after link...');
+          const fetchedWallets = await getWallets();
+          console.log('   getWallets() returned:', fetchedWallets?.length || 0, 'wallets');
+
+          const freshSigner = findSigner(fetchedWallets);
+          if (freshSigner) {
+            console.log('✅ Found signer via getWallets()!');
+            try {
+              await freshSigner.connect?.();
+            } catch (error) {
+              console.warn('⚠️  Signer connect warning:', error);
+            }
+            setSigner(freshSigner);
+            return freshSigner;
+          }
+        } catch (error) {
+          console.warn('⚠️  getWallets() failed:', error);
+        }
       }
 
-      if (canSign(linkedWallet)) {
+      // Check if linkWallet itself returned a signer
+      if (linkedWallet && canSign(linkedWallet)) {
         console.log('✅ linkWallet returned a signer directly!');
         try {
           await linkedWallet.connect?.();
         } catch (error) {
-          console.warn('⚠️  External wallet connect warning:', error);
+          console.warn('⚠️  linkedWallet connect warning:', error);
         }
         setSigner(linkedWallet);
         return linkedWallet;
       }
 
-      const MAX_ATTEMPTS = 10;
+      // Try getSolanaProvider() as fallback
+      if (linkedWallet && typeof linkedWallet.getSolanaProvider === 'function') {
+        try {
+          console.log('🔄 Trying getSolanaProvider()...');
+          const provider = await linkedWallet.getSolanaProvider();
+
+          if (provider && (provider.signTransaction || provider.signAndSendTransaction)) {
+            console.log('✅ Got signer from getSolanaProvider()!');
+
+            // Wrap provider in wallet object format
+            const wrappedSigner = {
+              ...linkedWallet,
+              signTransaction: provider.signTransaction?.bind(provider),
+              signAndSendTransaction: provider.signAndSendTransaction?.bind(provider),
+            };
+
+            setSigner(wrappedSigner);
+            return wrappedSigner;
+          }
+        } catch (error) {
+          console.warn('⚠️  getSolanaProvider() failed:', error);
+        }
+      }
+
+      const MAX_ATTEMPTS = 20;
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        console.log(`🔍 Attempt ${attempt + 1}/${MAX_ATTEMPTS} - searching for signer...`);
-        console.log('   walletsRef.current:', walletsRef.current?.length || 0, 'wallets');
+        console.log(`🔍 Attempt ${attempt + 1}/${MAX_ATTEMPTS}`);
 
-        let candidate = findSigner(walletsRef.current);
+        let candidate = null;
 
+        // Source 1: walletsRef.current
+        candidate = findSigner(walletsRef.current);
+        if (candidate) {
+          console.log('✅ Found in walletsRef');
+        }
+
+        // Source 2: privyWalletsApi.list (guarded)
         if (!candidate && privyWalletsApi?.list) {
-          console.log('   Trying privyWalletsApi.list()...');
           try {
             const apiWallets = await privyWalletsApi.list();
-            console.log('   privyWalletsApi.list() returned:', apiWallets?.length || 0, 'wallets');
             candidate = findSigner(apiWallets);
+            if (candidate) console.log('✅ Found in privyWalletsApi.list');
           } catch (error) {
-            console.warn('⚠️  privyWalletsApi.list() failed:', error);
+            // Silent - avoid log spam
           }
         }
 
+        // Source 3: wallets context
+        if (!candidate && wallets && wallets.length > 0) {
+          candidate = findSigner(wallets);
+          if (candidate) console.log('✅ Found in wallets context');
+        }
+
         if (candidate) {
-          console.log('✅ Found signer candidate:', {
+          console.log('   Signer details:', {
             address: candidate.address?.substring(0, 10) + '...',
             chainType: candidate.chainType || candidate.walletClientType,
             hasSignTransaction: !!candidate.signTransaction,
@@ -93,35 +152,32 @@ export function useExternalSigner() {
           try {
             await candidate.connect?.();
           } catch (error) {
-            console.warn('⚠️  External wallet connect warning:', error);
+            console.warn('⚠️  Connect warning:', error);
           }
           setSigner(candidate);
           return candidate;
         }
 
+        // Refresh once on first attempt
         if (attempt === 0 && typeof refresh === 'function') {
-          console.log('🔄 Calling refresh() to update wallet list...');
           try {
             await refresh();
-            console.log('   ✅ refresh() completed');
           } catch (error) {
-            console.warn('⚠️  Unable to refresh Privy wallets snapshot:', error);
+            // Silent
           }
-        } else if (attempt === 0) {
-          console.warn('⚠️  refresh() function not available in Privy SDK');
         }
 
         await new Promise((resolve) => setTimeout(resolve, 150));
       }
 
-      console.error('❌ No signer found after 10 attempts');
-      throw new Error('External wallet did not expose a signer. Approve in Phantom and try again.');
+      console.error('❌ No signer found after 20 attempts (3 seconds)');
+      throw new Error('Wallet linked but signer not ready. Please refresh and try again.');
     } catch (error) {
       throw error;
     } finally {
       setBusy(false);
     }
-  }, [busy, linkWallet, privyWalletsApi, refresh, signer]);
+  }, [busy, linkWallet, getWallets, privyWalletsApi, refresh, signer, wallets]);
 
   return {
     signer,
