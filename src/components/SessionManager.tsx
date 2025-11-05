@@ -9,7 +9,7 @@ import { useWallet } from '../hooks/useWallet';
 import SessionCreationModal from './SessionCreationModal';
 
 export default function SessionManager() {
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey, walletAddress } = useWallet();
   const [showModal, setShowModal] = useState(false);
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -18,13 +18,13 @@ export default function SessionManager() {
   // Check for active session when wallet connects
   useEffect(() => {
     const checkSession = async () => {
-      if (!connected || !publicKey) {
+      if (!connected || !walletAddress) {
         setHasActiveSession(false);
         lastCheckedWalletRef.current = null;
         return;
       }
 
-      const currentWallet = publicKey.toBase58();
+      const currentWallet = walletAddress;
 
       // Don't check multiple times for the same wallet
       if (checking || lastCheckedWalletRef.current === currentWallet) {
@@ -70,7 +70,7 @@ export default function SessionManager() {
     };
 
     checkSession();
-  }, [connected, publicKey]);
+  }, [connected, walletAddress]);
 
   const handleSessionCreated = () => {
     setHasActiveSession(true);

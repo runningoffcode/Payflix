@@ -1,5 +1,5 @@
 import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { PublicKey, Connection } from '@solana/web3.js';
+import { PublicKey, Connection, Transaction } from '@solana/web3.js';
 import { useMemo, useState } from 'react';
 
 /**
@@ -10,27 +10,42 @@ export function useWallet() {
   const { user: privyUser, authenticated, ready, login } = usePrivy();
   const { wallets } = useWallets();
 
-  const walletAddress = useMemo(() => {
-    if (!privyUser) return null;
+  const solanaWallet = useMemo(() => {
+    if (!wallets || wallets.length === 0) return null;
+    return wallets.find((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana') || null;
+  }, [wallets]);
 
-    const solanaWallets = wallets?.filter((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana');
-    if (solanaWallets && solanaWallets.length > 0) {
-      return solanaWallets[0].address;
+  const walletAddress = useMemo(() => {
+    if (solanaWallet) {
+      return solanaWallet.address;
     }
 
-    const embeddedWallet = privyUser.linkedAccounts?.find(
+    const embeddedWallet = privyUser?.linkedAccounts?.find(
       (acc: any) => acc.type === 'wallet' && acc.chainType === 'solana'
     );
-    if (embeddedWallet) {
-      return embeddedWallet.address;
-    }
 
-    return null;
-  }, [privyUser, wallets]);
+    return embeddedWallet?.address || null;
+  }, [privyUser, solanaWallet]);
 
   const publicKey = useMemo(() => (walletAddress ? new PublicKey(walletAddress) : null), [walletAddress]);
   const connected = authenticated && !!walletAddress;
   const connecting = !ready;
+
+  const signTransaction = solanaWallet?.signTransaction
+    ? async (tx: Transaction) => solanaWallet.signTransaction(tx)
+    : undefined;
+
+  const signAllTransactions = solanaWallet?.signAllTransactions
+    ? async (txs: Transaction[]) => solanaWallet.signAllTransactions(txs)
+    : undefined;
+
+  const sendTransaction = solanaWallet?.signAndSendTransaction
+    ? async (tx: Transaction, options?: any) => solanaWallet.signAndSendTransaction(tx, options)
+    : undefined;
+
+  const signMessage = solanaWallet?.signMessage
+    ? async (message: Uint8Array) => solanaWallet.signMessage(message)
+    : undefined;
 
   return {
     publicKey,
@@ -38,15 +53,15 @@ export function useWallet() {
     connected,
     connecting,
     disconnecting: false,
-    wallet: null,
-    wallets: [],
+    wallet: solanaWallet || null,
+    wallets: wallets || [],
     select: () => {},
-    connect: () => Promise.resolve(),
+    connect: () => login(),
     disconnect: () => Promise.resolve(),
-    sendTransaction: () => Promise.resolve(''),
-    signTransaction: undefined,
-    signAllTransactions: undefined,
-    signMessage: undefined,
+    sendTransaction,
+    signTransaction,
+    signAllTransactions,
+    signMessage,
   };
 }
 
