@@ -20,6 +20,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "src"
+    "src",
+    "server/routes/creator.routes.ts"
   ]
 }
