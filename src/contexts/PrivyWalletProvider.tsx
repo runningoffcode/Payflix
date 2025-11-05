@@ -41,7 +41,12 @@ export function PrivyWalletProvider({ children }: Props) {
 
         // Embedded wallets configuration
         embeddedWallets: {
-          createOnLogin: 'users-without-wallets', // Auto-create Solana wallet for email/social users
+          // Ensure embedded Solana wallets are provisioned with signing capability
+          solana: {
+            createOnLogin: 'users-without-wallets',
+            disableAutomaticMigration: false,
+            showWalletUIs: true,
+          },
           requireUserPasswordOnCreate: false, // Smooth UX - no extra password needed
         },
 
