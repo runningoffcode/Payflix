@@ -1,6 +1,6 @@
 import { PublicKey } from '@solana/web3.js';
 
-const DEFAULT_DEVNET_USDC = '9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2';
+const DEFAULT_DEVNET_USDC = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
 const DEFAULT_MAINNET_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
 export const SOLANA_CLUSTER =

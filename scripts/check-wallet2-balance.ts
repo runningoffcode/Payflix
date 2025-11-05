@@ -6,7 +6,7 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
 
 const WALLET_2 = '7GjoGMVuup81ihWRvboTpwiXPgu5vPnmzCEZ66uWN5yu';
-const CORRECT_USDC_MINT = new PublicKey('9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2');
+const CORRECT_USDC_MINT = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
 const RPC_URL = 'https://api.devnet.solana.com';
 
 async function checkBalance() {

@@ -10,6 +10,7 @@ import UsdcIcon from './icons/UsdcIcon';
 import TokenIcon from './icons/TokenIcon';
 import { useAuth } from '../contexts/AuthContext';
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
+import { usdcMintPublicKey } from '../config/solana';
 
 export default function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -36,8 +37,8 @@ export default function Sidebar() {
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
 
-  // USDC Mint Address (HARDCODED - env variable not loading)
-  const USDC_MINT = new PublicKey('9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2');
+  // USDC Mint Address - Uses environment variable or defaults to devnet USDC
+  const USDC_MINT = usdcMintPublicKey();
 
   useEffect(() => {
     if (connected && walletAddress) {
@@ -186,10 +187,9 @@ export default function Sidebar() {
           const mint = parsedInfo.mint;
           let symbol = 'UNKNOWN';
 
-          // Check for known USDC tokens
-          if (mint === '9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2') {
-            symbol = 'USDC';
-          } else if (mint === '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU') {
+          // Check for known USDC tokens (devnet)
+          const correctUsdcMint = USDC_MINT.toBase58();
+          if (mint === correctUsdcMint) {
             symbol = 'USDC';
           } else if (mint === 'DRXxfmg3PEk5Ad6DKuGSfa93ZLHDzXJKxcnjaAUGmW3z') {
             symbol = 'USDC (Devnet)';

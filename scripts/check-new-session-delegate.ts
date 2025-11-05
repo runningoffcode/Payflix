@@ -7,7 +7,7 @@ import { getAssociatedTokenAddress, getAccount } from '@solana/spl-token';
 
 const WALLET_2 = '7GjoGMVuup81ihWRvboTpwiXPgu5vPnmzCEZ66uWN5yu';
 const SESSION_KEY = '5LRfMjUgtM5G5oUbumNKF3V8c5b8ZYzDqDjFEi45htGN'; // From logs
-const CORRECT_USDC_MINT = new PublicKey('9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2');
+const CORRECT_USDC_MINT = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
 const RPC_URL = 'https://api.devnet.solana.com';
 
 async function checkDelegate() {
