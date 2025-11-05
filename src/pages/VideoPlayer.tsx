@@ -36,7 +36,7 @@ const USDC_MINT = new PublicKey(import.meta.env.VITE_USDC_MINT_ADDRESS || '9zB1q
 
 export default function VideoPlayer() {
   const { id } = useParams<{ id: string }>();
-  const { publicKey, connected, signTransaction } = useWallet();
+  const { publicKey, walletAddress, connected, signTransaction } = useWallet();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
 
@@ -55,13 +55,13 @@ export default function VideoPlayer() {
   }, [id]);
 
   useEffect(() => {
-    if (connected && publicKey && id) {
+    if (connected && walletAddress && id) {
       checkAccess();
     } else {
       // Not connected or missing data - stop checking
       setCheckingAccess(false);
     }
-  }, [connected, publicKey, id]);
+  }, [connected, walletAddress, id]);
 
   // Auto-fetch video stream URL when access is granted
   useEffect(() => {
@@ -112,14 +112,13 @@ export default function VideoPlayer() {
   };
 
   const checkAccess = async () => {
-    if (!publicKey || !id) {
-      console.log('⚠️ Cannot check access: missing publicKey or id');
+    if (!walletAddress || !id) {
+      console.log('⚠️ Cannot check access: missing wallet or id');
       setCheckingAccess(false);
       return;
     }
 
     setCheckingAccess(true);
-    const walletAddress = publicKey.toBase58();
     console.log(`🔍 Checking access for video ${id}...`);
 
     try {
@@ -156,7 +155,7 @@ export default function VideoPlayer() {
   };
 
   const fetchVideoStreamUrl = async () => {
-    if (!publicKey || !id) return;
+    if (!walletAddress || !id) return;
 
     try {
       // Check if video uses local storage
@@ -171,7 +170,7 @@ export default function VideoPlayer() {
       console.log('🔗 Fetching secure streaming session...');
       const response = await fetch(`/api/videos/${id}/play-url`, {
         headers: {
-          'x-wallet-address': publicKey.toBase58(),
+          'x-wallet-address': walletAddress,
         },
       });
 

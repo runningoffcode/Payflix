@@ -31,7 +31,7 @@ export default function Sidebar() {
   const [fetchingTokens, setFetchingTokens] = useState(false);
   const walletDropdownRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey, walletAddress } = useWallet();
   const { logout } = useAuth();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
@@ -40,7 +40,7 @@ export default function Sidebar() {
   const USDC_MINT = new PublicKey('9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2');
 
   useEffect(() => {
-    if (connected && publicKey) {
+    if (connected && walletAddress) {
       // Fetch immediately for fast loading
       fetchWalletBalance();
       fetchUserProfile();
@@ -53,37 +53,36 @@ export default function Sidebar() {
       setProfilePicture(null);
       setUsername(null);
     }
-  }, [connected, publicKey]);
+  }, [connected, walletAddress]);
 
   // Poll balances every 60 seconds to avoid rate limits (reduced from 10s)
   useEffect(() => {
-    if (connected && publicKey) {
+    if (connected && walletAddress) {
       const interval = setInterval(() => {
         fetchSessionBalance();
         fetchWalletBalance();
       }, 60000); // Changed from 10000 (10s) to 60000 (60s)
       return () => clearInterval(interval);
     }
-  }, [connected, publicKey]);
+  }, [connected, walletAddress]);
 
   // Listen for profile updates from other components (like Account page)
   useEffect(() => {
     const handleProfileUpdate = () => {
-      if (connected && publicKey) {
+      if (connected && walletAddress) {
         fetchUserProfile();
       }
     };
 
     window.addEventListener('profileUpdated', handleProfileUpdate);
     return () => window.removeEventListener('profileUpdated', handleProfileUpdate);
-  }, [connected, publicKey]);
+  }, [connected, walletAddress]);
 
   const fetchSessionBalance = async () => {
-    if (!publicKey) return;
+    if (!walletAddress || !publicKey) return;
 
     setLoading(true);
     try {
-      const walletAddress = publicKey.toBase58();
       const response = await fetch(`/api/payments/session/balance?userWallet=${walletAddress}`);
 
       if (response.ok) {
@@ -105,10 +104,10 @@ export default function Sidebar() {
   };
 
   const fetchWalletBalance = async () => {
-    if (!publicKey) return;
+    if (!walletAddress || !publicKey) return;
 
     console.log(`💰 Fetching wallet USDC balance (queued)...`);
-    console.log(`   Wallet: ${publicKey.toBase58().slice(0, 8)}...`);
+    console.log(`   Wallet: ${walletAddress.slice(0, 8)}...`);
     console.log(`   USDC Mint: ${USDC_MINT.toBase58()}`);
 
     try {
@@ -137,10 +136,9 @@ export default function Sidebar() {
   };
 
   const fetchUserProfile = async () => {
-    if (!publicKey) return;
+    if (!walletAddress || !publicKey) return;
 
     try {
-      const walletAddress = publicKey.toBase58();
       const response = await fetch('/api/users/profile', {
         headers: {
           'x-wallet-address': walletAddress,
@@ -158,7 +156,7 @@ export default function Sidebar() {
   };
 
   const fetchAllTokenBalances = async () => {
-    if (!publicKey || !connected) return;
+    if (!walletAddress || !publicKey || !connected) return;
 
     console.log('🔵 Fetching all token balances (queued)...');
     setFetchingTokens(true);
@@ -224,10 +222,10 @@ export default function Sidebar() {
 
   // Fetch all token balances when dropdown opens
   useEffect(() => {
-    if (showWalletDropdown && connected) {
+    if (showWalletDropdown && connected && walletAddress) {
       fetchAllTokenBalances();
     }
-  }, [showWalletDropdown, connected]);
+  }, [showWalletDropdown, connected, walletAddress]);
 
   const navItems = [
     { path: '/', icon: 'home', label: 'Home' },
@@ -259,7 +257,7 @@ export default function Sidebar() {
   };
 
   const handleWithdrawCredits = async () => {
-    if (!publicKey || !hasActiveSession) return;
+    if (!walletAddress || !publicKey || !hasActiveSession) return;
 
     const amount = parseFloat(withdrawAmount);
 
@@ -276,7 +274,6 @@ export default function Sidebar() {
 
     setWithdrawing(true);
     try {
-      const walletAddress = publicKey.toBase58();
       const response = await fetch('/api/sessions/withdraw', {
         method: 'POST',
         headers: {

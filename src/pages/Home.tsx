@@ -23,7 +23,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [ownedVideoIds, setOwnedVideoIds] = useState<string[]>([]);
-  const { connected, publicKey } = useWallet();
+  const { connected, publicKey, walletAddress } = useWallet();
 
   const categories = ['All', 'Entertainment', 'Gaming', 'Music', 'Education', 'Technology', 'Lifestyle'];
 
@@ -34,13 +34,13 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (connected && publicKey) {
+    if (connected && walletAddress) {
       // Fetch immediately for fast loading
       fetchOwnedVideoIds();
     } else {
       setOwnedVideoIds([]);
     }
-  }, [connected, publicKey]);
+  }, [connected, walletAddress]);
 
   const fetchVideos = async () => {
     try {
@@ -56,12 +56,12 @@ export default function Home() {
   };
 
   const fetchOwnedVideoIds = async () => {
-    if (!publicKey) return;
+    if (!walletAddress) return;
 
     try {
       const response = await fetch('/api/users/owned-video-ids', {
         headers: {
-          'x-wallet-address': publicKey.toBase58(),
+          'x-wallet-address': walletAddress,
         },
       });
 

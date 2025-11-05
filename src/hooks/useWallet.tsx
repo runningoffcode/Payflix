@@ -10,8 +10,7 @@ export function useWallet() {
   const { user: privyUser, authenticated, ready, login } = usePrivy();
   const { wallets } = useWallets();
 
-  // Get Solana wallet address from Privy (connected wallet OR embedded wallet)
-  const getWalletAddress = (): string | null => {
+  const walletAddress = useMemo(() => {
     if (!privyUser) return null;
 
     const solanaWallets = wallets?.filter((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana');
@@ -27,15 +26,15 @@ export function useWallet() {
     }
 
     return null;
-  };
+  }, [privyUser, wallets]);
 
-  const walletAddress = getWalletAddress();
-  const publicKey = walletAddress ? new PublicKey(walletAddress) : null;
+  const publicKey = useMemo(() => (walletAddress ? new PublicKey(walletAddress) : null), [walletAddress]);
   const connected = authenticated && !!walletAddress;
   const connecting = !ready;
 
   return {
     publicKey,
+    walletAddress,
     connected,
     connecting,
     disconnecting: false,

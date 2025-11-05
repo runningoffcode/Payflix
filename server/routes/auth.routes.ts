@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../database';
+import { db } from '../database/db-factory';
 import { generateAccessToken, generateRefreshToken, authenticateJWT } from '../middleware/auth.middleware';
 import { AuthRequest } from '../types';
 import { v4 as uuidv4 } from 'uuid';
