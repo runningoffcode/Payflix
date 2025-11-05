@@ -36,13 +36,28 @@ export function useExternalSigner() {
     if (canSign(signer)) return signer;
 
     setBusy(true);
+    console.log('🔗 useExternalSigner: Starting external wallet connection...');
+    console.log('   refresh function available:', typeof refresh === 'function');
+    console.log('   current wallets count:', walletsRef.current?.length || 0);
+
     try {
+      console.log('🔗 Calling linkWallet({ chain: "solana" })...');
       await linkWallet?.({ chain: 'solana' });
 
       const MAX_ATTEMPTS = 10;
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        console.log(`🔍 Attempt ${attempt + 1}/${MAX_ATTEMPTS} - searching for signer...`);
+        console.log('   walletsRef.current:', walletsRef.current?.length || 0, 'wallets');
+
         const candidate = findSigner(walletsRef.current);
         if (candidate) {
+          console.log('✅ Found signer candidate:', {
+            address: candidate.address?.substring(0, 10) + '...',
+            chainType: candidate.chainType || candidate.walletClientType,
+            hasSignTransaction: !!candidate.signTransaction,
+            hasSignAndSendTransaction: !!candidate.signAndSendTransaction,
+          });
+
           try {
             await candidate.connect?.();
           } catch (error) {
@@ -53,16 +68,21 @@ export function useExternalSigner() {
         }
 
         if (attempt === 0 && typeof refresh === 'function') {
+          console.log('🔄 Calling refresh() to update wallet list...');
           try {
             await refresh();
+            console.log('   ✅ refresh() completed');
           } catch (error) {
             console.warn('⚠️  Unable to refresh Privy wallets snapshot:', error);
           }
+        } else if (attempt === 0) {
+          console.warn('⚠️  refresh() function not available in Privy SDK');
         }
 
         await new Promise((resolve) => setTimeout(resolve, 150));
       }
 
+      console.error('❌ No signer found after 10 attempts');
       throw new Error('External wallet did not expose a signer. Approve in Phantom and try again.');
     } finally {
       setBusy(false);

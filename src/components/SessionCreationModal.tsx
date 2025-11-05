@@ -141,7 +141,13 @@ export default function SessionCreationModal({
       typeof externalSigner.signAndSendTransaction === 'function');
 
   const resolveSignerFns = useCallback(async () => {
+    console.log('🔐 Wallet signer availability check...');
+    console.log('   hasEmbeddedSigner:', hasEmbeddedSigner);
+    console.log('   hasExternalSigner:', hasExternalSigner);
+    console.log('   externalSigner:', externalSigner);
+
     if (hasEmbeddedSigner) {
+      console.log('✅ Using embedded signer (Privy)');
       return {
         signTransaction,
         sendTransaction,
@@ -149,6 +155,9 @@ export default function SessionCreationModal({
     }
 
     if (hasExternalSigner) {
+      console.log('✅ Using cached external signer (Phantom/Backpack)');
+      console.log('   signTransaction:', !!externalSigner?.signTransaction);
+      console.log('   signAndSendTransaction:', !!externalSigner?.signAndSendTransaction);
       return {
         signTransaction: externalSigner?.signTransaction
           ? async (tx: Transaction) => externalSigner.signTransaction(tx)
@@ -160,8 +169,14 @@ export default function SessionCreationModal({
       };
     }
 
+    console.log('🔗 No signer found - attempting to link external wallet...');
     const linkedSigner = await connectExternal();
+    console.log('   linkedSigner result:', linkedSigner);
+    console.log('   signTransaction:', !!linkedSigner?.signTransaction);
+    console.log('   signAndSendTransaction:', !!linkedSigner?.signAndSendTransaction);
+
     if (linkedSigner?.signTransaction || linkedSigner?.signAndSendTransaction) {
+      console.log('✅ External wallet linked successfully');
       return {
         signTransaction: linkedSigner.signTransaction
           ? async (tx: Transaction) => linkedSigner.signTransaction(tx)
@@ -173,6 +188,7 @@ export default function SessionCreationModal({
       };
     }
 
+    console.error('❌ No signer available after all attempts');
     return null;
   }, [
     connectExternal,
