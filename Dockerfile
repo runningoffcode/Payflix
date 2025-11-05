@@ -5,7 +5,7 @@ COPY package*.json ./
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg python3 build-essential && \
     rm -rf /var/lib/apt/lists/* && \
-    npm ci
+    npm ci --legacy-peer-deps
 COPY . .
 RUN npm run build
 
@@ -20,7 +20,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --legacy-peer-deps
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/public ./public
