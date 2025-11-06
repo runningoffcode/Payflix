@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -41,6 +41,7 @@ export default function WalletBalance() {
   const [solBalance, setSolBalance] = useState<number>(0);
   const [usdcBalance, setUsdcBalance] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const fetchingRef = useRef(false);
 
   // USDC Mint Address (Devnet)
   const USDC_MINT = usdcMintPublicKey();
@@ -57,9 +58,11 @@ export default function WalletBalance() {
 
   const fetchBalances = async () => {
     if (!publicKey) return;
+    if (fetchingRef.current) return;
 
     console.log('🔵 WalletBalance: Fetching balances (queued - BACKGROUND priority)...');
     setLoading(true);
+    fetchingRef.current = true;
     try {
       // Queue SOL balance fetch with BACKGROUND priority (lowest priority for polling widgets)
       const balance = await queueRPCRequest(
@@ -92,8 +95,17 @@ export default function WalletBalance() {
       // Keep showing last known balance instead of clearing it
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
   };
+
+  useEffect(() => {
+    if (!connected || !publicKey) return;
+
+    const handler = () => fetchBalances();
+    window.addEventListener('sessionUpdated', handler);
+    return () => window.removeEventListener('sessionUpdated', handler);
+  }, [connected, publicKey]);
 
   if (!connected) return null;
 

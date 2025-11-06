@@ -222,22 +222,11 @@ export default function WalletConnectButton() {
                         className="flex items-center justify-between p-3 bg-neutral-800 rounded-lg"
                       >
                         <div className="flex items-center gap-3">
-                          {token.logo ? (
-                            <img
-                              src={token.logo}
-                              alt={token.symbol}
-                              className="w-8 h-8 rounded-full"
-                              onError={(e) => {
-                                // Fallback to TokenIcon if image fails to load
-                                e.currentTarget.style.display = 'none';
-                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                              }}
-                            />
-                          ) : null}
                           <TokenIcon
                             mint={token.mint}
                             symbol={token.symbol}
-                            className={`w-8 h-8 ${token.logo ? 'hidden' : ''}`}
+                            logo={token.logo}
+                            className="w-8 h-8"
                           />
                           <div>
                             <div className="text-sm font-semibold text-white">

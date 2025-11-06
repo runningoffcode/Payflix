@@ -11,6 +11,7 @@ import TokenIcon from './icons/TokenIcon';
 import { useAuth } from '../contexts/AuthContext';
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
 import { usdcMintPublicKey } from '../config/solana';
+import { fetchTokenMetadata } from '../services/helius-token-metadata.service';
 
 export default function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -27,7 +28,7 @@ export default function Sidebar() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [showWalletDropdown, setShowWalletDropdown] = useState(false);
-  const [allTokenBalances, setAllTokenBalances] = useState<{ mint: string; balance: number; symbol: string }[]>([]);
+  const [allTokenBalances, setAllTokenBalances] = useState<{ mint: string; balance: number; symbol: string; logo?: string; name?: string }[]>([]);
   const [solBalance, setSolBalance] = useState<number>(0);
   const [fetchingTokens, setFetchingTokens] = useState(false);
   const walletDropdownRef = useRef<HTMLDivElement>(null);
@@ -36,6 +37,9 @@ export default function Sidebar() {
   const { logout } = useAuth();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
+  const fetchingSessionRef = useRef(false);
+  const fetchingWalletRef = useRef(false);
+  const fetchingTokensRef = useRef(false);
 
   // USDC Mint Address - Uses environment variable or defaults to devnet USDC
   const USDC_MINT = usdcMintPublicKey();
@@ -84,6 +88,9 @@ export default function Sidebar() {
 
   const fetchSessionBalance = async () => {
     if (!walletAddress || !publicKey) return;
+    if (fetchingSessionRef.current) return;
+
+    fetchingSessionRef.current = true;
 
     setLoading(true);
     try {
@@ -104,11 +111,15 @@ export default function Sidebar() {
       setHasActiveSession(false);
     } finally {
       setLoading(false);
+      fetchingSessionRef.current = false;
     }
   };
 
   const fetchWalletBalance = async () => {
     if (!walletAddress || !publicKey) return;
+    if (fetchingWalletRef.current) return;
+
+    fetchingWalletRef.current = true;
 
     console.log(`💰 Fetching wallet USDC balance (queued)...`);
     console.log(`   Wallet: ${walletAddress.slice(0, 8)}...`);
@@ -136,6 +147,8 @@ export default function Sidebar() {
     } catch (error: any) {
       console.error(`   ❌ Error fetching wallet balance:`, error?.message || error);
       setWalletBalance(0);
+    } finally {
+      fetchingWalletRef.current = false;
     }
   };
 
@@ -161,6 +174,9 @@ export default function Sidebar() {
 
   const fetchAllTokenBalances = async () => {
     if (!walletAddress || !publicKey || !connected) return;
+    if (fetchingTokensRef.current) return;
+
+    fetchingTokensRef.current = true;
 
     console.log('🔵 Fetching all token balances (queued)...');
     setFetchingTokens(true);
@@ -180,7 +196,7 @@ export default function Sidebar() {
         RPC_PRIORITY.LOW
       );
 
-      const tokens: { mint: string; balance: number; symbol: string }[] = [];
+      const tokens: { mint: string; balance: number; symbol: string; name?: string }[] = [];
 
       for (const { account } of tokenAccounts.value) {
         const parsedInfo = account.data.parsed.info;
@@ -204,11 +220,26 @@ export default function Sidebar() {
             mint,
             balance,
             symbol,
+            name: symbol,
           });
         }
       }
 
-      setAllTokenBalances(tokens);
+      const mintAddresses = tokens.map((token) => token.mint);
+      const metadataMap = await fetchTokenMetadata(mintAddresses);
+
+      const tokensWithMetadata = tokens.map(({ mint, balance, symbol }) => {
+        const meta = metadataMap.get(mint);
+        return {
+          mint,
+          balance,
+          symbol: meta?.symbol || symbol,
+          name: meta?.name || symbol,
+          logo: meta?.logo,
+        };
+      });
+
+      setAllTokenBalances(tokensWithMetadata);
       console.log('🔵 Found', tokens.length, 'tokens and', solBal / LAMPORTS_PER_SOL, 'SOL');
     } catch (error: any) {
       // Handle rate limit errors gracefully
@@ -220,6 +251,7 @@ export default function Sidebar() {
       }
     } finally {
       setFetchingTokens(false);
+      fetchingTokensRef.current = false;
     }
   };
 
@@ -518,11 +550,12 @@ export default function Sidebar() {
                               className="flex items-center justify-between p-2 bg-neutral-700/50 rounded-lg"
                             >
                               <div className="flex items-center gap-2">
-                                <TokenIcon
-                                  mint={token.mint}
-                                  symbol={token.symbol}
-                                  className="w-6 h-6"
-                                />
+                              <TokenIcon
+                                mint={token.mint}
+                                symbol={token.symbol}
+                                logo={token.logo}
+                                className="w-6 h-6"
+                              />
                                 <div>
                                   <div className="text-xs font-semibold text-white">
                                     {token.symbol}

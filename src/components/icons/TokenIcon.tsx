@@ -1,10 +1,11 @@
 interface TokenIconProps {
   mint: string;
   symbol: string;
+  logo?: string;
   className?: string;
 }
 
-export default function TokenIcon({ mint, symbol, className = "w-8 h-8" }: TokenIconProps) {
+export default function TokenIcon({ mint, symbol, logo, className = "w-8 h-8" }: TokenIconProps) {
   // Known token logos with actual image URLs
   const KNOWN_TOKENS: { [key: string]: { name: string; logoUrl: string } } = {
     // USDC Mainnet
@@ -41,26 +42,6 @@ export default function TokenIcon({ mint, symbol, className = "w-8 h-8" }: Token
 
   const tokenInfo = KNOWN_TOKENS[mint];
 
-  // Display known token logos as actual images
-  if (tokenInfo) {
-    return (
-      <img
-        src={tokenInfo.logoUrl}
-        alt={tokenInfo.name}
-        className={`${className} rounded-full object-cover`}
-        onError={(e) => {
-          // Fallback if image fails to load
-          const target = e.target as HTMLImageElement;
-          target.style.display = 'none';
-          if (target.nextElementSibling) {
-            (target.nextElementSibling as HTMLElement).style.display = 'flex';
-          }
-        }}
-      />
-    );
-  }
-
-  // Fallback for unknown tokens - show first letter with gradient
   const gradients = [
     'from-cyan-500 to-blue-500',
     'from-purple-500 to-pink-500',
@@ -74,11 +55,43 @@ export default function TokenIcon({ mint, symbol, className = "w-8 h-8" }: Token
   const gradientIndex = parseInt(mint.slice(0, 8), 36) % gradients.length;
   const gradient = gradients[gradientIndex];
 
-  return (
-    <div className={`${className} rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+  const fallback = (
+    <div className={`w-full h-full rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center`}>
       <span className="text-white text-xs font-bold">
         {symbol.slice(0, 1).toUpperCase()}
       </span>
+    </div>
+  );
+
+  const renderImage = (src: string, alt: string) => (
+    <div className={className}>
+      <img
+        src={src}
+        alt={alt}
+        className="w-full h-full rounded-full object-cover"
+        onError={(e) => {
+          const target = e.target as HTMLImageElement;
+          target.style.display = 'none';
+          if (target.nextElementSibling) {
+            (target.nextElementSibling as HTMLElement).style.display = 'flex';
+          }
+        }}
+      />
+      <div className="hidden w-full h-full">{fallback}</div>
+    </div>
+  );
+
+  if (logo) {
+    return renderImage(logo, symbol);
+  }
+
+  if (tokenInfo) {
+    return renderImage(tokenInfo.logoUrl, tokenInfo.name);
+  }
+
+  return (
+    <div className={className}>
+      {fallback}
     </div>
   );
 }
