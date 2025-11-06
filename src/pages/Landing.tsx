@@ -16,8 +16,8 @@ const SOCIAL_LINKS = [
     name: 'Telegram',
     href: 'https://t.me/payflixdotfun',
     icon: (
-      <svg className="h-4 w-4" viewBox="0 0 240 240" fill="currentColor" aria-hidden="true">
-        <path d="M120 0C53.726 0 0 53.726 0 120s53.726 120 120 120 120-53.726 120-120S186.274 0 120 0Zm58.842 82.24c-1.448 36.416-15.404 98.404-54.8 98.404-22.11 0-38.324-16.01-46.488-32.052-10.716-21.036-19.183-50.976-23.628-73.536-2.68-13.832 6.272-19.648 21.548-12.284 12.984 6.264 27.56 14.244 39.264 22.076 5.712 3.86 9.312 3.044 13.906-2.8 7.688-9.964 16.66-21.032 25.496-30.944 10.328-11.592 20.628-8.024 18.448 6.32-3.332 21.248-13.776 36.368-24.048 53.38-3.388 5.664-2.272 8.852 3.628 12.24 10.204 5.736 20.408 11.568 30.448 17.404 11.176 6.384 13.808 15.544 6.196 24.5-12.628 14.792-33.976 29.284-58.148 29.284-34.504 0-66.296-26.096-82.66-51.8-17.996-28.172-30.04-64.756-34.424-98.84-1.628-12.688 7.044-21.252 19.724-17.536 35.648 10.372 74.428 49.612 102.252 77.248 7.212 7.102 13.36 8.028 21.548 1.804 17.628-13.248 37.564-31.984 51.524-48.02 8.274-9.544 17.944-4.84 17.372 7.752Z" />
+      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M22.25 1.95 1.55 10.53c-1.19.49-1.18 1.18-.22 1.51l5.43 1.74 2.11 6.69c.24.69.4.97 1.03.97.54 0 .78-.25 1.08-.55l2.6-2.53 5.42 4c.99.54 1.7.26 1.95-.92l3.54-16.63c.35-1.69-.64-2.46-1.56-2.02Z" />
       </svg>
     ),
   },
@@ -25,18 +25,18 @@ const SOCIAL_LINKS = [
 
 const PLACEHOLDER_CA = '9X7Lk1d4NqCpjQV98zXWitDdJsa1LkM7dHPYVL7eXy3a';
 
-function SocialButton({ name, href, icon }: (typeof SOCIAL_LINKS)[number]) {
+function SocialButton({ name, href, icon, className = '' }: (typeof SOCIAL_LINKS)[number] & { className?: string }) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="group flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.25em] text-white/80 transition hover:border-flix-cyan/70 hover:bg-flix-cyan/10"
+      className={`group flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.25em] text-white/80 transition hover:border-flix-cyan/70 hover:bg-flix-cyan/10 ${className}`}
     >
       <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-white transition group-hover:bg-flix-cyan/20">
         {icon}
       </span>
-      <span className="text-white group-hover:text-white">{name}</span>
+      <span className="hidden md:inline text-white group-hover:text-white">{name}</span>
     </a>
   );
 }
@@ -96,16 +96,48 @@ export default function Landing() {
       <ShaderBackground />
       <div className="absolute inset-0 bg-gradient-to-br from-[#120c2c]/40 via-[#1a0f42]/30 to-[#0d564e]/35" />
 
-      <header className="relative z-20 flex items-center justify-between gap-6 px-6 py-6 sm:px-10">
-        <span className="text-sm font-semibold uppercase tracking-[0.6em] text-white/60">
-          PayFlix
-        </span>
-        <div className="flex flex-1 items-center justify-end gap-4 sm:gap-6">
-          <div className="hidden items-center gap-3 md:flex">
+      <header className="relative z-20 w-full px-6 py-6 sm:px-10">
+        <div className="hidden items-center justify-between gap-6 md:flex">
+          <img
+            src="/payflix-text-logo.svg"
+            alt="PayFlix stacked logo"
+            className="h-14 w-auto"
+          />
+          <div className="flex items-center gap-3">
             {SOCIAL_LINKS.map((link) => (
               <SocialButton key={link.name} {...link} />
             ))}
           </div>
+          <ContractAddress />
+        </div>
+
+        <div className="grid grid-cols-3 items-center gap-3 md:hidden">
+          <div className="flex justify-start">
+            <img
+              src="/payflix-text-logo.svg"
+              alt="PayFlix stacked logo"
+              className="h-10 w-auto"
+            />
+          </div>
+          <div className="flex justify-center">
+            <SocialButton
+              name="X"
+              href={SOCIAL_LINKS[0].href}
+              icon={SOCIAL_LINKS[0].icon}
+              className="px-2"
+            />
+          </div>
+          <div className="flex justify-end">
+            <SocialButton
+              name="Telegram"
+              href={SOCIAL_LINKS[1].href}
+              icon={SOCIAL_LINKS[1].icon}
+              className="px-2"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 md:hidden">
           <ContractAddress />
         </div>
       </header>
