@@ -99,10 +99,12 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const commentPrice = Number(video.comment_price || 0);
+    const isCreatorCommenting = video.creator_wallet === userWallet;
+    const effectivePrice = isCreatorCommenting ? 0 : commentPrice;
     let paymentId: string | null = null;
     let transactionSignature: string | null = null;
 
-    if (commentPrice > 0) {
+    if (effectivePrice > 0) {
       console.log(`💰 Comment requires payment: $${commentPrice} USDC`);
 
       const hasSession = await sessionPaymentService.hasActiveSession(userWallet);
@@ -116,7 +118,7 @@ router.post('/', async (req: Request, res: Response) => {
       }
 
       const sessionBalance = await sessionPaymentService.getSessionBalance(userWallet);
-      if (sessionBalance.remainingAmount && sessionBalance.remainingAmount < commentPrice) {
+      if (sessionBalance.remainingAmount && sessionBalance.remainingAmount < effectivePrice) {
         return res.status(402).json({
           error: 'Insufficient session balance',
           message: `This comment costs $${commentPrice} USDC. You currently have $${sessionBalance.remainingAmount ?? 0} USDC remaining.`,
@@ -129,7 +131,7 @@ router.post('/', async (req: Request, res: Response) => {
       const paymentResult = await sessionPaymentService.processSessionPayment({
         userWallet,
         videoId,
-        amount: commentPrice,
+        amount: effectivePrice,
         creatorWallet: video.creator_wallet,
       });
 
@@ -143,8 +145,8 @@ router.post('/', async (req: Request, res: Response) => {
       transactionSignature = paymentResult.signature ?? `comment_${Date.now()}`;
 
       const platformFeePercent = 2.85;
-      const platformAmount = commentPrice * (platformFeePercent / 100);
-      const creatorAmount = commentPrice - platformAmount;
+      const platformAmount = effectivePrice * (platformFeePercent / 100);
+      const creatorAmount = effectivePrice - platformAmount;
 
       paymentId = uuidv4();
       await db.createPayment({
@@ -153,12 +155,14 @@ router.post('/', async (req: Request, res: Response) => {
         userId: user.id,
         userWallet,
         creatorWallet: video.creator_wallet,
-        amount: commentPrice,
+        amount: effectivePrice,
         creatorAmount,
         platformAmount,
         transactionSignature,
         status: 'verified',
       });
+    } else if (isCreatorCommenting && commentPrice > 0) {
+      console.log('🔁 Creator commenting on own video - skipping payment deduction.');
     }
 
     const commentId = `comment_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -182,7 +186,7 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Failed to create comment' });
     }
 
-    const updatedBalance = commentPrice > 0
+    const updatedBalance = effectivePrice > 0
       ? await sessionPaymentService.getSessionBalance(userWallet)
       : null;
 
@@ -190,10 +194,13 @@ router.post('/', async (req: Request, res: Response) => {
 
     return res.status(201).json({
       comment,
-      message: commentPrice
-        ? `Comment posted! $${commentPrice} deducted from your session.`
-        : 'Comment posted successfully',
+      message: effectivePrice > 0
+        ? `Comment posted! $${effectivePrice} deducted from your session.`
+        : isCreatorCommenting && commentPrice > 0
+          ? 'Comment posted! Creators are not charged for comments on their own videos.'
+          : 'Comment posted successfully',
       balance: updatedBalance,
+      chargedAmount: effectivePrice,
     });
   } catch (error: any) {
     console.error('❌ Error in POST /api/comments:', error);

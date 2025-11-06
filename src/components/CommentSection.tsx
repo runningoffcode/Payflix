@@ -105,11 +105,15 @@ export default function CommentSection({ videoId, commentsEnabled, commentPrice 
           window.dispatchEvent(new Event('sessionUpdated'));
         }
 
+        const successDescription = data.message || (
+          commentPrice > 0
+            ? `Comment posted! $${commentPrice} USDC deducted from your session balance.`
+            : 'Thanks for joining the conversation.'
+        );
+
         showToast({
           title: 'Comment posted',
-          description: commentPrice > 0
-            ? `Comment posted! $${commentPrice} USDC deducted from your session balance.`
-            : 'Thanks for joining the conversation.',
+          description: successDescription,
           variant: 'success',
         });
       } else if (response.status === 402) {

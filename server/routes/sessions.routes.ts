@@ -148,6 +148,8 @@ router.post('/create', async (req, res) => {
     console.log(`   💳 User USDC Account: ${userUsdcAccount.toBase58()}`);
 
     // CRITICAL: Verify user has enough USDC before allowing approval
+    let userBalanceUsdc = 0;
+
     try {
       const userAccountInfo = await connection.getAccountInfo(userUsdcAccount);
       if (!userAccountInfo) {
@@ -159,7 +161,7 @@ router.post('/create', async (req, res) => {
       }
 
       const userBalance = await connection.getTokenAccountBalance(userUsdcAccount);
-      const userBalanceUsdc = parseFloat(userBalance.value.uiAmountString || '0');
+      userBalanceUsdc = parseFloat(userBalance.value.uiAmountString || '0');
 
       console.log(`   💰 User's wallet balance: ${userBalanceUsdc} USDC`);
       console.log(`   💵 Requested deposit: ${approvedAmount} USDC`);
@@ -197,6 +199,19 @@ router.post('/create', async (req, res) => {
         Math.floor(totalApprovedAmount * 1_000_000) // Total amount, not just new deposit
       )
     );
+
+    // Ensure total approved amount never exceeds wallet balance
+    const roundedWalletBalance = Math.floor(userBalanceUsdc * 100) / 100;
+    const roundedTotalApproved = Math.round(totalApprovedAmount * 100) / 100;
+    if (roundedTotalApproved > roundedWalletBalance + 0.0001) {
+      console.log(`   ❌ Total approval (${roundedTotalApproved}) exceeds wallet balance (${roundedWalletBalance})`);
+      return res.status(400).json({
+        error: 'Approval Exceeds Balance',
+        message: `You can approve up to $${roundedWalletBalance.toFixed(2)} USDC based on your wallet balance.`,
+        walletBalance: roundedWalletBalance,
+        attemptedApproval: roundedTotalApproved,
+      });
+    }
 
     // Get recent blockhash
     const { blockhash } = await connection.getLatestBlockhash('confirmed');

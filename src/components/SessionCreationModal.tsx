@@ -32,8 +32,16 @@ export default function SessionCreationModal({
   const [step, setStep] = useState<'setup' | 'signing' | 'success'>('setup');
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [fetchingBalance, setFetchingBalance] = useState(false);
+  const [sessionBalance, setSessionBalance] = useState<number>(0);
+  const [fetchingSessionBalance, setFetchingSessionBalance] = useState(false);
 
   const quickAmounts = [5, 10, 20, 50, 100];
+
+  const getMaxAllowableDeposit = useCallback(() => {
+    if (walletBalance === null) return 0;
+    const existingCredits = hasExistingSession ? sessionBalance : 0;
+    return Math.max(walletBalance - existingCredits, 0);
+  }, [walletBalance, hasExistingSession, sessionBalance]);
 
   const fetchWalletBalance = useCallback(async () => {
     if (!isOpen || !publicKey) {
@@ -88,10 +96,35 @@ export default function SessionCreationModal({
     }
   }, [isOpen, publicKey]);
 
+  const fetchSessionBalance = useCallback(async () => {
+    if (!isOpen || !publicKey || !hasExistingSession) {
+      setSessionBalance(0);
+      return;
+    }
+
+    try {
+      setFetchingSessionBalance(true);
+      const response = await fetch(`/api/payments/session/balance?userWallet=${publicKey.toBase58()}`);
+
+      if (response.ok) {
+        const data = await response.json();
+        setSessionBalance(data.remainingAmount || 0);
+      } else {
+        setSessionBalance(0);
+      }
+    } catch (fetchError) {
+      console.error('❌ Error fetching session balance for clamp:', fetchError);
+      setSessionBalance(0);
+    } finally {
+      setFetchingSessionBalance(false);
+    }
+  }, [hasExistingSession, isOpen, publicKey]);
+
   // Fetch wallet balance when modal opens
   useEffect(() => {
     fetchWalletBalance();
-  }, [fetchWalletBalance]);
+    fetchSessionBalance();
+  }, [fetchWalletBalance, fetchSessionBalance]);
 
   // Function to set max deposit
   const handleMaxDeposit = () => {
@@ -110,7 +143,8 @@ export default function SessionCreationModal({
       return;
     }
     if (walletBalance !== null && walletBalance > 0) {
-      const maxAmount = Math.floor(walletBalance * 100) / 100;
+      const maxAllowable = getMaxAllowableDeposit();
+      const maxAmount = Math.floor(maxAllowable * 100) / 100;
       console.log(`   ✅ Setting approved amount to: ${maxAmount}`);
       setApprovedAmount(maxAmount);
     } else if (walletBalance === 0) {
@@ -121,6 +155,16 @@ export default function SessionCreationModal({
       setTimeout(() => setError(null), 3000);
     }
   };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (walletBalance === null) return;
+
+    const maxAllowable = getMaxAllowableDeposit();
+    if (approvedAmount > maxAllowable) {
+      setApprovedAmount(Math.floor(maxAllowable * 100) / 100);
+    }
+  }, [approvedAmount, getMaxAllowableDeposit, isOpen, walletBalance]);
 
   // Reset modal state when it opens
   useEffect(() => {
@@ -361,19 +405,25 @@ export default function SessionCreationModal({
 
               {/* Quick Select Buttons */}
               <div className="grid grid-cols-5 gap-2 mb-3">
-                {quickAmounts.map((amount) => (
-                  <button
-                    key={amount}
-                    onClick={() => setApprovedAmount(amount)}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                      approvedAmount === amount
-                        ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/30'
-                        : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700 border border-neutral-600'
-                    }`}
-                  >
-                    ${amount}
-                  </button>
-                ))}
+                {quickAmounts.map((amount) => {
+                  const maxAllowable = getMaxAllowableDeposit();
+                  const safeAmount = Math.min(amount, maxAllowable);
+                  const isDisabled = safeAmount <= 0;
+                  return (
+                    <button
+                      key={amount}
+                      onClick={() => setApprovedAmount(Math.floor(safeAmount * 100) / 100)}
+                      disabled={isDisabled}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        approvedAmount === Math.floor(safeAmount * 100) / 100
+                          ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/30'
+                          : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700 border border-neutral-600'
+                      } ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    >
+                      ${amount}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Custom Amount Input */}
@@ -384,7 +434,12 @@ export default function SessionCreationModal({
                 <input
                   type="number"
                   value={approvedAmount}
-                  onChange={(e) => setApprovedAmount(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => {
+                    const entered = parseFloat(e.target.value) || 0;
+                    const maxAllowable = getMaxAllowableDeposit();
+                    const clamped = Math.min(entered, maxAllowable);
+                    setApprovedAmount(clamped);
+                  }}
                   min="1"
                   max="1000"
                   step="1"
@@ -396,7 +451,11 @@ export default function SessionCreationModal({
                   onClick={handleMaxDeposit}
                   disabled={fetchingBalance || walletBalance === null || walletBalance === 0}
                   className="absolute right-16 top-1/2 -translate-y-1/2 px-2 py-1 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={walletBalance !== null ? `Max: $${walletBalance.toFixed(2)} USDC` : 'Fetching balance...'}
+                  title={
+                    walletBalance !== null
+                      ? `Max: $${getMaxAllowableDeposit().toFixed(2)} USDC`
+                      : 'Fetching balance...'
+                  }
                 >
                   {fetchingBalance ? '...' : 'MAX'}
                 </button>
@@ -409,8 +468,19 @@ export default function SessionCreationModal({
                   💡 Most videos cost $0.01-0.50 • $10 gets you 20-1000 videos!
                 </p>
                 {walletBalance !== null && (
-                  <p className="text-xs text-neutral-400">
-                    Wallet: <span className="text-purple-400 font-medium">${walletBalance.toFixed(2)}</span>
+                  <p className="text-xs text-neutral-400 flex gap-2">
+                    <span>
+                      Wallet:{' '}
+                      <span className="text-purple-400 font-medium">${walletBalance.toFixed(2)}</span>
+                    </span>
+                    {hasExistingSession && (
+                      <span>
+                        Credits:{' '}
+                        <span className="text-purple-400 font-medium">
+                          {fetchingSessionBalance ? '...' : `$${sessionBalance.toFixed(2)}`}
+                        </span>
+                      </span>
+                    )}
                   </p>
                 )}
               </div>

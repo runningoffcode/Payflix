@@ -247,6 +247,7 @@ export default function VideoPlayer() {
       console.log('✅ Payment complete!');
       console.log(`Transaction: ${data.signature}`);
       console.log('=== No Wallet Popup Required! ===\n');
+      window.dispatchEvent(new Event('sessionUpdated'));
 
       // Show brief success message
       setPaymentSuccess(true);

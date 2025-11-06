@@ -346,6 +346,7 @@ export default function Sidebar() {
         setWithdrawAmount('');
         await fetchSessionBalance();
         await fetchWalletBalance();
+        window.dispatchEvent(new Event('sessionUpdated'));
       } else {
         alert(`❌ Failed to withdraw: ${data.error || 'Unknown error'}`);
       }
