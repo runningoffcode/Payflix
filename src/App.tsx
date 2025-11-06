@@ -26,7 +26,6 @@ import Landing from './pages/Landing';
 function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
   const [showLanding, setShowLanding] = useState(false);
-  const [landingDismissed, setLandingDismissed] = useState(false);
   const { publicKey, connected } = useWallet();
   const location = useLocation();
 
@@ -47,12 +46,12 @@ function AppContent() {
     const hostname = window.location.hostname.toLowerCase();
     const isLandingDomain = hostname === 'payflix.fun' || hostname === 'www.payflix.fun';
 
-    if (isLandingDomain && location.pathname === '/' && !landingDismissed) {
+    if (isLandingDomain && location.pathname === '/') {
       setShowLanding(true);
     } else {
       setShowLanding(false);
     }
-  }, [landingDismissed, location.pathname]);
+  }, [location.pathname]);
 
   const handleMobileLogoClick = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -68,7 +67,7 @@ function AppContent() {
   const sideOffsetRight = 'calc(env(safe-area-inset-right, 0px) + 0.9rem)';
 
   if (showLanding) {
-    return <Landing onEnter={() => setLandingDismissed(true)} />;
+    return <Landing />;
   }
 
   return (
