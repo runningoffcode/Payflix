@@ -346,18 +346,27 @@ export default function SessionCreationModal({
         {step === 'setup' && (
           <>
             <div className="text-center mb-6">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
-                <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
+              <div className="relative w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full bg-[#C56BCE] opacity-70 blur-xl" />
+                <div className="relative w-full h-full rounded-full bg-gradient-to-br from-[#C56BCE] to-[#9F4BC4] flex items-center justify-center shadow-[0_0_30px_rgba(197,107,206,0.45)]">
+                  <svg
+                    className="w-9 h-9 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.6}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">
-                💰 {hasExistingSession ? 'Add More Credits' : 'Deposit USDC to Enter the Flix!'}
+                Add Credits
               </h2>
               <p className="text-neutral-400 text-sm">
-                {hasExistingSession
-                  ? 'Top up your credits to keep watching videos'
-                  : 'Add credits to your account and watch videos instantly'}
+                Tap. Pay. Play. It&apos;s that easy.
               </p>
             </div>
 
@@ -371,7 +380,7 @@ export default function SessionCreationModal({
                 </div>
                 <div>
                   <p className="text-white font-medium text-sm">Choose your deposit amount</p>
-                  <p className="text-neutral-400 text-xs">Add as little as $5 or as much as you want</p>
+                  <p className="text-neutral-400 text-xs">Add as little as $0.01 or as much as you want</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 mb-3">
@@ -381,8 +390,8 @@ export default function SessionCreationModal({
                   </svg>
                 </div>
                 <div>
-                  <p className="text-white font-medium text-sm">Zero popups for 24 hours</p>
-                  <p className="text-neutral-400 text-xs">Watch unlimited videos instantly after deposit</p>
+                  <p className="text-white font-medium text-sm">Seamless payments</p>
+                  <p className="text-neutral-400 text-xs">Just tap to watch after deposit—no wallet prompts</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -440,9 +449,9 @@ export default function SessionCreationModal({
                     const clamped = Math.min(entered, maxAllowable);
                     setApprovedAmount(clamped);
                   }}
-                  min="1"
+                  min="0.01"
                   max="1000"
-                  step="1"
+                  step="0.01"
                   className="w-full bg-neutral-800 border border-neutral-600 rounded-lg pl-8 pr-24 py-3 text-white text-lg font-medium focus:outline-none focus:border-purple-500 transition-colors [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   placeholder="Custom amount"
                   style={{ MozAppearance: 'textfield' }}
