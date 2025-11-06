@@ -322,7 +322,7 @@ export default function Home() {
                             </div>
                             {!isOwned && (
                               <span className="text-xs text-neutral-600 flex items-center gap-1">
-                                {video.priceUsdc.toFixed(2)}
+                                {Number(video.priceUsdc ?? 0).toFixed(2)}
                                 <UsdcIcon size={12} />
                               </span>
                             )}
@@ -345,7 +345,7 @@ export default function Home() {
                             {video.title}
                           </h3>
                           <div className="flex items-center gap-1 text-xs font-medium text-purple-400 flex-shrink-0">
-                            {video.priceUsdc.toFixed(2)}
+                            {Number(video.priceUsdc ?? 0).toFixed(2)}
                             <UsdcIcon size={14} />
                           </div>
                         </div>
