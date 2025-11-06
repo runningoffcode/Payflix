@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -35,6 +35,14 @@ function AppContent() {
     setShowSplash(false);
   };
 
+  const handleMobileLogoClick = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent('toggleSidebar'));
+  }, []);
+
   return (
     <div className="min-h-screen bg-neutral-900 text-white">
       {/* Three.js Shader Background */}
@@ -50,6 +58,20 @@ function AppContent() {
         <div key={walletKey}>
           {/* Session Manager - Prompts deposit on wallet connect */}
           <SessionManager />
+
+          {/* Mobile Sidebar Trigger */}
+          <button
+            type="button"
+            onClick={handleMobileLogoClick}
+            className="md:hidden fixed top-4 left-4 z-50 flex items-center justify-center px-4 py-2 rounded-xl border border-neutral-700/80 bg-neutral-900/80 backdrop-blur-sm shadow-lg transition hover:border-purple-500/70 hover:bg-neutral-900/90"
+            aria-label="Open navigation menu"
+          >
+            <img
+              src="/payflix-text.svg"
+              alt="PayFlix"
+              className="h-6 w-auto object-contain"
+            />
+          </button>
 
           <div className="flex min-h-screen">
             {/* Sidebar */}
