@@ -32,7 +32,7 @@ export function Toast({ message, onDismiss, duration = 4500 }: ToastProps) {
   }, [message, onDismiss, duration]);
 
   return (
-    <div className="pointer-events-none fixed top-4 left-1/2 z-[120] flex w-full justify-center px-4 transform -translate-x-1/2">
+    <div className="pointer-events-none fixed inset-x-0 top-4 z-[120] flex w-full justify-center px-4">
       <AnimatePresence initial={false}>
         {message && (
           <motion.div

@@ -5,6 +5,7 @@ import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { motion } from 'framer-motion';
 import { GradientButton } from '@/components/ui/GradientButton';
 import UsdcIcon from '@/components/icons/UsdcIcon';
+import { useToastContext } from '@/contexts/ToastContext';
 
 interface UserProfile {
   id: string;
@@ -35,6 +36,7 @@ export default function Profile() {
   const { publicKey, connected } = useWallet();
   const { setVisible } = useWalletModal();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { showToast } = useToastContext();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<ProfileStats | null>(null);
@@ -66,7 +68,7 @@ export default function Profile() {
     try {
       const walletAddress = publicKey.toBase58();
 
-      const response = await fetch('http://localhost:5001/api/users/profile', {
+      const response = await fetch('/api/users/profile', {
         headers: {
           'x-wallet-address': walletAddress,
         },
@@ -123,13 +125,21 @@ export default function Profile() {
     if (file) {
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        alert('Please select an image file');
+        showToast({
+          title: 'Unsupported file',
+          description: 'Please select a valid image file (PNG, JPG, GIF).',
+          variant: 'error',
+        });
         return;
       }
 
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('File size must be less than 5MB');
+        showToast({
+          title: 'File too large',
+          description: 'Profile pictures must be smaller than 5MB.',
+          variant: 'error',
+        });
         return;
       }
 
@@ -158,7 +168,7 @@ export default function Profile() {
         formData.append('profilePicture', profilePictureFile);
       }
 
-      const response = await fetch('http://localhost:5001/api/users/update-profile', {
+      const response = await fetch('/api/users/update-profile', {
         method: 'PUT',
         headers: {
           'x-wallet-address': walletAddress,
@@ -166,19 +176,27 @@ export default function Profile() {
         body: formData,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setProfile(data.user);
-        setIsEditing(false);
-        setProfilePictureFile(null);
-        setProfilePicturePreview(null);
-        alert('Profile updated successfully!');
-      } else {
-        throw new Error('Failed to update profile');
+      if (!response.ok) {
+        throw new Error(`Failed to update profile (${response.status})`);
       }
+
+      const data = await response.json();
+      setProfile(data.user);
+      setIsEditing(false);
+      setProfilePictureFile(null);
+      setProfilePicturePreview(null);
+      showToast({
+        title: 'Profile updated',
+        description: 'Your changes have been saved successfully.',
+        variant: 'success',
+      });
     } catch (error) {
       console.error('Failed to save profile:', error);
-      alert('Failed to update profile. Please try again.');
+      showToast({
+        title: 'Update failed',
+        description: 'We could not save your profile changes. Please try again.',
+        variant: 'error',
+      });
     } finally {
       setSaving(false);
     }
