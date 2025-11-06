@@ -7,11 +7,9 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "nodemon --watch server --ext ts,json --exec ts-node --project tsconfig.server.json server/index.ts",
     "dev:client": "vite",
-    "dev:landing": "vite --config landing/vite.config.ts",
     "build": "npm run build:server && npm run build:client",
     "build:server": "tsc -p tsconfig.server.json",
     "build:client": "vite build",
-    "build:landing": "vite build --config landing/vite.config.ts",
     "start": "node dist/server/index.js",
     "type-check": "tsc --noEmit",
     "seed": "ts-node scripts/seed-videos.ts"
