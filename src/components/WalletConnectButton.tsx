@@ -7,8 +7,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GradientButton } from './ui/GradientButton';
 import TokenIcon from './icons/TokenIcon';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchTokenMetadata, type TokenMetadata } from '../services/helius-token-metadata.service';
+import { fetchTokenMetadata, KNOWN_TOKENS } from '../services/helius-token-metadata.service';
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
+import { getTokenDisplayInfo } from '../constants/tokenDisplay';
+
+const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
 export default function WalletConnectButton() {
   const { publicKey, connected, connecting, disconnect } = useWallet();
@@ -80,13 +83,25 @@ export default function WalletConnectButton() {
 
       // Combine balance + metadata
       const tokens = tokensWithBalance.map(({ mint, balance }) => {
+        const display = getTokenDisplayInfo(mint);
         const meta = metadata.get(mint);
+        const known = KNOWN_TOKENS[mint];
+        const fallbackSymbol = mint.slice(0, 4) + '...';
+
+        const symbol = display?.symbol || meta?.symbol || known?.symbol || fallbackSymbol;
+        const name =
+          display?.name ||
+          meta?.name ||
+          known?.name ||
+          (display?.symbol || meta?.symbol || known?.symbol ? symbol : 'Unknown Token');
+        const logo = display?.logo || meta?.logo;
+
         return {
           mint,
           balance,
-          symbol: meta?.symbol || mint.slice(0, 4) + '...',
-          name: meta?.name || 'Unknown Token',
-          logo: meta?.logo,
+          symbol,
+          name,
+          logo,
         };
       });
 
@@ -127,6 +142,8 @@ export default function WalletConnectButton() {
   const formatAddress = (address: string) => {
     return `${address.slice(0, 4)}...${address.slice(-4)}`;
   };
+
+  const solDisplay = getTokenDisplayInfo(SOL_MINT);
 
   return (
     <div className="flex items-center gap-4">
@@ -198,20 +215,27 @@ export default function WalletConnectButton() {
                     <div className="flex items-center justify-between p-3 bg-neutral-800 rounded-lg">
                       <div className="flex items-center gap-3">
                         <TokenIcon
-                          mint="So11111111111111111111111111111111111111112"
-                          symbol="SOL"
+                          mint={SOL_MINT}
+                          symbol={solDisplay?.symbol || 'SOL'}
+                          logo={solDisplay?.logo}
                           className="w-8 h-8"
                         />
                         <div>
-                          <div className="text-sm font-semibold text-white">SOL</div>
-                          <div className="text-xs text-neutral-400">Solana</div>
+                          <div className="text-sm font-semibold text-white">
+                            {solDisplay?.symbol || 'SOL'}
+                          </div>
+                          <div className="text-xs text-neutral-400">
+                            {solDisplay?.name || 'Solana'}
+                          </div>
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-semibold text-white">
                           {solBalance.toFixed(4)}
                         </div>
-                        <div className="text-xs text-neutral-400">SOL</div>
+                        <div className="text-xs text-neutral-400">
+                          {solDisplay?.symbol || 'SOL'}
+                        </div>
                       </div>
                     </div>
 

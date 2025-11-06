@@ -11,7 +11,11 @@ import TokenIcon from './icons/TokenIcon';
 import { useAuth } from '../contexts/AuthContext';
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
 import { usdcMintPublicKey } from '../config/solana';
-import { fetchTokenMetadata } from '../services/helius-token-metadata.service';
+import { fetchTokenMetadata, KNOWN_TOKENS } from '../services/helius-token-metadata.service';
+import { getTokenDisplayInfo } from '../constants/tokenDisplay';
+
+const SOL_MINT = 'So11111111111111111111111111111111111111112';
+import { getTokenDisplayInfo } from '../constants/tokenDisplay';
 
 export default function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -196,46 +200,40 @@ export default function Sidebar() {
         RPC_PRIORITY.LOW
       );
 
-      const tokens: { mint: string; balance: number; symbol: string; name?: string }[] = [];
-
-      for (const { account } of tokenAccounts.value) {
-        const parsedInfo = account.data.parsed.info;
-        const balance = parsedInfo.tokenAmount.uiAmount;
-
-        if (balance > 0) {
-          const mint = parsedInfo.mint;
-          let symbol = 'UNKNOWN';
-
-          // Check for known USDC tokens (devnet)
-          const correctUsdcMint = USDC_MINT.toBase58();
-          if (mint === correctUsdcMint) {
-            symbol = 'USDC';
-          } else if (mint === 'DRXxfmg3PEk5Ad6DKuGSfa93ZLHDzXJKxcnjaAUGmW3z') {
-            symbol = 'USDC (Devnet)';
-          } else {
-            symbol = mint.slice(0, 4) + '...';
-          }
-
-          tokens.push({
-            mint,
+      const tokensWithBalance = tokenAccounts.value
+        .map(({ account }) => {
+          const parsedInfo = account.data.parsed.info;
+          const balance = parsedInfo.tokenAmount.uiAmount;
+          return {
+            mint: parsedInfo.mint as string,
             balance,
-            symbol,
-            name: symbol,
-          });
-        }
-      }
+          };
+        })
+        .filter(({ balance }) => balance > 0);
 
-      const mintAddresses = tokens.map((token) => token.mint);
+      const mintAddresses = tokensWithBalance.map((token) => token.mint);
       const metadataMap = await fetchTokenMetadata(mintAddresses);
 
-      const tokensWithMetadata = tokens.map(({ mint, balance, symbol }) => {
+      const tokensWithMetadata = tokensWithBalance.map(({ mint, balance }) => {
+        const display = getTokenDisplayInfo(mint);
         const meta = metadataMap.get(mint);
+        const known = KNOWN_TOKENS[mint];
+        const fallbackSymbol = mint.slice(0, 4) + '...';
+
+        const symbol = display?.symbol || meta?.symbol || known?.symbol || fallbackSymbol;
+        const name =
+          display?.name ||
+          meta?.name ||
+          known?.name ||
+          (display?.symbol || meta?.symbol || known?.symbol ? symbol : 'Unknown Token');
+        const logo = display?.logo || meta?.logo;
+
         return {
           mint,
           balance,
-          symbol: meta?.symbol || symbol,
-          name: meta?.name || symbol,
-          logo: meta?.logo,
+          symbol,
+          name,
+          logo,
         };
       });
 
@@ -375,6 +373,8 @@ export default function Sidebar() {
     window.addEventListener('toggleSidebar', handleToggleSidebar);
     return () => window.removeEventListener('toggleSidebar', handleToggleSidebar);
   }, []);
+
+  const solDisplay = getTokenDisplayInfo(SOL_MINT);
 
   return (
     <>
@@ -534,20 +534,27 @@ export default function Sidebar() {
                           <div className="flex items-center justify-between p-2 bg-neutral-700/50 rounded-lg">
                             <div className="flex items-center gap-2">
                               <TokenIcon
-                                mint="So11111111111111111111111111111111111111112"
-                                symbol="SOL"
+                                mint={SOL_MINT}
+                                symbol={solDisplay?.symbol || 'SOL'}
+                                logo={solDisplay?.logo}
                                 className="w-6 h-6"
                               />
                               <div>
-                                <div className="text-xs font-semibold text-white">SOL</div>
-                                <div className="text-[10px] text-neutral-400">Solana</div>
+                                <div className="text-xs font-semibold text-white">
+                                  {solDisplay?.symbol || 'SOL'}
+                                </div>
+                                <div className="text-[10px] text-neutral-400">
+                                  {solDisplay?.name || 'Solana'}
+                                </div>
                               </div>
                             </div>
                             <div className="text-right">
                               <div className="text-xs font-semibold text-white">
                                 {solBalance.toFixed(4)}
                               </div>
-                              <div className="text-[10px] text-neutral-400">SOL</div>
+                              <div className="text-[10px] text-neutral-400">
+                                {solDisplay?.symbol || 'SOL'}
+                              </div>
                             </div>
                           </div>
 
@@ -569,7 +576,7 @@ export default function Sidebar() {
                                     {token.symbol}
                                   </div>
                                   <div className="text-[10px] text-neutral-400 truncate max-w-[100px]">
-                                    {token.mint.slice(0, 8)}...
+                                    {token.name || token.symbol}
                                   </div>
                                 </div>
                               </div>

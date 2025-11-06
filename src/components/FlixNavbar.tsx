@@ -8,42 +8,13 @@ import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { fetchTokenMetadata, KNOWN_TOKENS } from '../services/helius-token-metadata.service';
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
 import TokenIcon from './icons/TokenIcon';
+import { getTokenDisplayInfo } from '../constants/tokenDisplay';
 
 /**
  * YouTube-style Navbar for Flix
  * Modern, minimal design with smooth interactions
  */
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
-
-const TOKEN_DISPLAY_OVERRIDES: Record<string, { symbol: string; name: string; logo: string }> = {
-  // Solana native token (works on devnet & mainnet)
-  [SOL_MINT]: {
-    symbol: 'SOL',
-    name: 'Solana',
-    logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
-  },
-  // USDC variants (devnet + mainnet)
-  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': {
-    symbol: 'USDC',
-    name: 'USD Coin',
-    logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
-  },
-  '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU': {
-    symbol: 'USDC',
-    name: 'USD Coin',
-    logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
-  },
-  'DRXxfmg3PEk5Ad6DKuGSfa93ZLHDzXJKxcnjaAUGmW3z': {
-    symbol: 'USDC',
-    name: 'USD Coin',
-    logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
-  },
-  '9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2': {
-    symbol: 'USDC',
-    name: 'USD Coin',
-    logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
-  },
-};
 
 export default function FlixNavbar() {
   const location = useLocation();
@@ -119,7 +90,7 @@ export default function FlixNavbar() {
       // Combine balance + metadata
       const tokens = tokensWithBalance.map(({ mint, balance }) => {
         const meta = metadata.get(mint);
-        const display = TOKEN_DISPLAY_OVERRIDES[mint];
+        const display = getTokenDisplayInfo(mint);
         const known = KNOWN_TOKENS[mint];
         const fallbackSymbol = mint.slice(0, 4) + '...';
         const symbol = display?.symbol || meta?.symbol || known?.symbol || fallbackSymbol;
@@ -168,6 +139,8 @@ export default function FlixNavbar() {
     event.preventDefault();
     window.dispatchEvent(new CustomEvent('toggleSidebar'));
   };
+
+  const solDisplay = getTokenDisplayInfo(SOL_MINT);
 
   const navLinks = [
     { path: '/', label: 'Home', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -293,20 +266,26 @@ export default function FlixNavbar() {
                             <div className="flex items-center space-x-3">
                               <TokenIcon
                                 mint={SOL_MINT}
-                                symbol="SOL"
-                                logo={TOKEN_DISPLAY_OVERRIDES[SOL_MINT].logo}
+                                symbol={solDisplay?.symbol || 'SOL'}
+                                logo={solDisplay?.logo}
                                 className="w-8 h-8"
                               />
                               <div>
-                                <div className="text-sm font-semibold text-white">SOL</div>
-                                <div className="text-xs text-flix-text-secondary">Solana</div>
+                                <div className="text-sm font-semibold text-white">
+                                  {solDisplay?.symbol || 'SOL'}
+                                </div>
+                                <div className="text-xs text-flix-text-secondary">
+                                  {solDisplay?.name || 'Solana'}
+                                </div>
                               </div>
                             </div>
                             <div className="text-right">
                               <div className="text-sm font-semibold text-white">
                                 {solBalance.toFixed(4)}
                               </div>
-                              <div className="text-xs text-flix-text-secondary">SOL</div>
+                              <div className="text-xs text-flix-text-secondary">
+                                {solDisplay?.symbol || 'SOL'}
+                              </div>
                             </div>
                           </div>
 
