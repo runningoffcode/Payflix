@@ -25,6 +25,8 @@ export interface Video {
   views: number;
   earnings: number;
   archived: boolean; // Hidden from public, but accessible to purchasers
+  commentsEnabled?: boolean;
+  commentPrice?: number;
   createdAt: Date;
   updatedAt: Date;
 }

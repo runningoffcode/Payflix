@@ -131,6 +131,8 @@ router.get('/:id', async (req: Request, res: Response) => {
       views: video.views,
       creatorId: video.creatorId,
       creatorWallet: video.creatorWallet,
+      commentsEnabled: video.commentsEnabled ?? true,
+      commentPrice: video.commentPrice ?? 0,
       createdAt: video.createdAt,
     });
   } catch (error) {

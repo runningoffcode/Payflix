@@ -162,6 +162,8 @@ class SupabaseDatabase {
           views: video.views,
           earnings: video.earnings,
           archived: video.archived || false, // Default to not archived
+          comments_enabled: video.commentsEnabled ?? true,
+          comment_price: video.commentPrice ?? 0,
         },
       ])
       .select()
@@ -624,6 +626,8 @@ class SupabaseDatabase {
       views: data.views,
       earnings: data.earnings,
       archived: data.archived || false, // Default to false if not set
+      commentsEnabled: data.comments_enabled !== false,
+      commentPrice: data.comment_price ?? 0,
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
     };
