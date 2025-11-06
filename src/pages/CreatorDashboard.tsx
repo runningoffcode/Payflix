@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import AnalyticsDashboard from '../components/creator/AnalyticsDashboard';
 import VideoManagement from '../components/creator/VideoManagement';
 import UsdcIcon from '../components/icons/UsdcIcon';
+import { useToastContext } from '../contexts/ToastContext';
 
 interface CreatorStats {
   creator: {
@@ -37,6 +38,7 @@ export default function CreatorDashboard() {
   const { publicKey, connected } = useWallet();
   const { setVisible } = useWalletModal();
   const { user, token, isLoading: isAuthLoading, login } = useAuth();
+  const { showToast } = useToastContext();
   const [stats, setStats] = useState<CreatorStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
@@ -194,7 +196,15 @@ export default function CreatorDashboard() {
 
       await uploadPromise;
 
-      alert('Video uploaded successfully!');
+      showToast({
+        title: 'Video uploaded!',
+        description: 'Your video is processing and will appear in your library shortly.',
+        variant: 'success',
+        actionLabel: 'View videos',
+        onAction: () => {
+          setActiveTab('videos');
+        },
+      });
       setShowUploadForm(false);
       setNewVideo({ title: '', description: '', category: 'Entertainment', priceUsdc: '', commentsEnabled: true, commentPrice: '0' });
       setVideoFile(null);
@@ -203,7 +213,11 @@ export default function CreatorDashboard() {
       fetchCreatorStats();
     } catch (error) {
       console.error('Failed to upload video:', error);
-      alert('Failed to upload video. Please try again.');
+      showToast({
+        title: 'Upload failed',
+        description: 'Something went wrong while uploading. Please try again.',
+        variant: 'error',
+      });
     } finally {
       setUploading(false);
     }

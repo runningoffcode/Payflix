@@ -4,6 +4,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { SolanaWalletProvider } from './contexts/SolanaWalletProvider';
 import { AuthProvider } from './contexts/AuthContext';
+import { ToastProvider } from './contexts/ToastContext';
 import ShaderBackground from './components/ShaderBackground';
 import SplashScreen from './components/SplashScreen';
 import Sidebar from './components/Sidebar';
@@ -81,7 +82,9 @@ function App() {
     <BrowserRouter>
       <SolanaWalletProvider>
         <AuthProvider>
-          <AppContent />
+          <ToastProvider>
+            <AppContent />
+          </ToastProvider>
         </AuthProvider>
       </SolanaWalletProvider>
     </BrowserRouter>
