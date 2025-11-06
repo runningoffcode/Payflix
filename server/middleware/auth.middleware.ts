@@ -79,19 +79,60 @@ export async function authenticateJWT(
         : req.headers['x-auth-token'] as string;
 
     if (!token) {
+      console.warn('[auth] missing Authorization token');
       res.status(401).json({ error: 'No token provided' });
       return;
     }
 
     // Verify token
-    const payload = verifyToken(token);
+    let payload: JWTPayload;
+    try {
+      payload = verifyToken(token);
+    } catch (err: any) {
+      console.warn('[auth] invalid token', err?.message || err);
+      throw err;
+    }
 
     // Get user from database
-    const user = await db.getUserById(payload.userId);
+    let user = await db.getUserById(payload.userId);
 
     if (!user) {
-      res.status(401).json({ error: 'User not found' });
-      return;
+      if (payload.walletAddress) {
+        console.warn('[auth] user id missing, attempting wallet recovery', {
+          userId: payload.userId,
+          wallet: payload.walletAddress,
+        });
+
+        user = await db.getUserByWallet(payload.walletAddress);
+
+        if (!user) {
+          console.info('[auth] creating user during auth recovery', {
+            wallet: payload.walletAddress,
+          });
+
+          try {
+            user = await db.createUser({
+              walletAddress: payload.walletAddress,
+              username: undefined,
+              email: undefined,
+              isCreator: true,
+            });
+          } catch (creationError) {
+            console.error('[auth] failed to create user during recovery', creationError);
+            res.status(401).json({ error: 'User recovery failed' });
+            return;
+          }
+        }
+      }
+
+      if (!user) {
+        console.warn('[auth] user not found after recovery attempts', {
+          userId: payload.userId,
+          wallet: payload.walletAddress,
+        });
+        res.status(401).json({ error: 'User not found' });
+        return;
+      }
     }
 
     // Attach user to request
