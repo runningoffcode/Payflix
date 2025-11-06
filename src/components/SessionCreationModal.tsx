@@ -317,28 +317,6 @@ export default function SessionCreationModal({
               </p>
             </div>
 
-            {!hasEmbeddedSigner && !hasExternalSigner && (
-              <div className="mb-6 rounded-xl border border-neutral-700 bg-neutral-800/60 p-4 text-left">
-                <p className="text-sm text-neutral-200 font-medium">
-                  Embedded wallet is view-only. Connect Phantom or Backpack to deposit USDC.
-                </p>
-                <button
-                  onClick={async () => {
-                    try {
-                      await connectExternal();
-                    } catch {
-                      setError('Wallet connection was canceled. Please approve in Phantom and try again.');
-                      setTimeout(() => setError(null), 4000);
-                    }
-                  }}
-                  disabled={externalBusy}
-                  className="mt-3 inline-flex items-center rounded-lg bg-purple-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {externalBusy ? 'Waiting for approval…' : 'Connect Phantom'}
-                </button>
-              </div>
-            )}
-
             <div className="bg-neutral-800/50 rounded-xl p-4 mb-6 border border-neutral-700">
               <div className="flex items-start gap-3 mb-3">
                 <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
