@@ -1,5 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { db } from '../database/db-factory';
+import { sessionPaymentService } from '../services/session-payment.service';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 
@@ -68,7 +71,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Fetch video to check comment settings
     const { data: video, error: videoError } = await supabase
       .from('videos')
-      .select('id, title, comments_enabled, comment_price, creator_id')
+      .select('id, title, comments_enabled, comment_price, creator_wallet')
       .eq('id', videoId)
       .single();
 
@@ -83,84 +86,81 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Get user ID
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('wallet_address', userWallet)
-      .single();
-
-    if (userError || !user) {
-      console.error('❌ User not found:', userError);
-      return res.status(404).json({ error: 'User not found' });
+    let user = await db.getUserByWallet(userWallet);
+    if (!user) {
+      console.log(`   Creating user for wallet ${userWallet}`);
+      user = await db.createUser({
+        walletAddress: userWallet,
+        username: username || `User ${userWallet.substring(0, 8)}`,
+        email: null,
+        profilePictureUrl: profilePictureUrl || undefined,
+        isCreator: false,
+      });
     }
 
+    const commentPrice = Number(video.comment_price || 0);
     let paymentId: string | null = null;
     let transactionSignature: string | null = null;
 
-    // If comment has a price, process payment via session key
-    if (video.comment_price && video.comment_price > 0) {
-      console.log(`💰 Comment requires payment: $${video.comment_price} USDC`);
+    if (commentPrice > 0) {
+      console.log(`💰 Comment requires payment: $${commentPrice} USDC`);
 
-      // Check if user has an active session with enough balance
-      const { data: session, error: sessionError } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('user_wallet', userWallet)
-        .eq('revoked', false)
-        .gt('expires_at', new Date().toISOString())
-        .gt('remaining_amount', video.comment_price)
-        .single();
-
-      if (sessionError || !session) {
+      const hasSession = await sessionPaymentService.hasActiveSession(userWallet);
+      if (!hasSession) {
         return res.status(402).json({
-          error: 'Insufficient session balance',
-          commentPrice: video.comment_price,
-          message: `This video requires $${video.comment_price} USDC to comment. Please add credits to your session.`,
-          requiresPayment: true,
+          error: 'No active session',
+          message: 'Please deposit USDC to your session balance to leave a paid comment.',
+          requiresSession: true,
+          commentPrice,
         });
       }
 
-      // TODO: Process session key payment via X402 middleware
-      // For now, just deduct from session balance
-      const newRemainingAmount = parseFloat(session.remaining_amount) - video.comment_price;
-
-      const { error: updateError } = await supabase
-        .from('sessions')
-        .update({
-          remaining_amount: newRemainingAmount,
-          spent_amount: parseFloat(session.spent_amount || '0') + video.comment_price,
-        })
-        .eq('id', session.id);
-
-      if (updateError) {
-        console.error('❌ Error updating session balance:', updateError);
-        return res.status(500).json({ error: 'Failed to process payment' });
+      const sessionBalance = await sessionPaymentService.getSessionBalance(userWallet);
+      if (sessionBalance.remainingAmount && sessionBalance.remainingAmount < commentPrice) {
+        return res.status(402).json({
+          error: 'Insufficient session balance',
+          message: `This comment costs $${commentPrice} USDC. You currently have $${sessionBalance.remainingAmount ?? 0} USDC remaining.`,
+          requiresPayment: true,
+          commentPrice,
+          remaining: sessionBalance.remainingAmount ?? 0,
+        });
       }
 
-      // Create payment record
-      paymentId = `payment_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      transactionSignature = `session_${session.id}_${Date.now()}`;
-
-      const { error: paymentError } = await supabase.from('payments').insert({
-        id: paymentId,
-        video_id: videoId,
-        user_id: user.id,
-        user_wallet: userWallet,
-        amount: video.comment_price,
-        transaction_signature: transactionSignature,
-        payment_type: 'comment',
-        status: 'confirmed',
+      const paymentResult = await sessionPaymentService.processSessionPayment({
+        userWallet,
+        videoId,
+        amount: commentPrice,
+        creatorWallet: video.creator_wallet,
       });
 
-      if (paymentError) {
-        console.error('❌ Error creating payment record:', paymentError);
-        return res.status(500).json({ error: 'Failed to create payment record' });
+      if (!paymentResult.success) {
+        return res.status(500).json({
+          error: 'Payment Failed',
+          message: paymentResult.error || 'Unable to process comment payment.',
+        });
       }
 
-      console.log(`✅ Payment processed via session key: ${paymentId}`);
+      transactionSignature = paymentResult.signature ?? `comment_${Date.now()}`;
+
+      const platformFeePercent = 2.85;
+      const platformAmount = commentPrice * (platformFeePercent / 100);
+      const creatorAmount = commentPrice - platformAmount;
+
+      paymentId = uuidv4();
+      await db.createPayment({
+        id: paymentId,
+        videoId,
+        userId: user.id,
+        userWallet,
+        creatorWallet: video.creator_wallet,
+        amount: commentPrice,
+        creatorAmount,
+        platformAmount,
+        transactionSignature,
+        status: 'verified',
+      });
     }
 
-    // Create comment
     const commentId = `comment_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const { data: comment, error: commentError } = await supabase
       .from('comments')
@@ -169,8 +169,8 @@ router.post('/', async (req: Request, res: Response) => {
         video_id: videoId,
         user_id: user.id,
         user_wallet: userWallet,
-        username: username || null,
-        profile_picture_url: profilePictureUrl || null,
+        username: username || user.username || null,
+        profile_picture_url: profilePictureUrl || user.profilePictureUrl || null,
         content: content.trim(),
         payment_id: paymentId,
       })
@@ -182,11 +182,18 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Failed to create comment' });
     }
 
+    const updatedBalance = commentPrice > 0
+      ? await sessionPaymentService.getSessionBalance(userWallet)
+      : null;
+
     console.log(`✅ Comment created: ${commentId}`);
 
     return res.status(201).json({
       comment,
-      message: video.comment_price ? `Comment posted! $${video.comment_price} deducted from your session.` : 'Comment posted successfully',
+      message: commentPrice
+        ? `Comment posted! $${commentPrice} deducted from your session.`
+        : 'Comment posted successfully',
+      balance: updatedBalance,
     });
   } catch (error: any) {
     console.error('❌ Error in POST /api/comments:', error);

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useToastContext } from '../contexts/ToastContext';
 
 interface Comment {
   id: string;
@@ -23,7 +24,8 @@ interface CommentSectionProps {
 
 export default function CommentSection({ videoId, commentsEnabled, commentPrice }: CommentSectionProps) {
   const { publicKey } = useWallet();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const { showToast } = useToastContext();
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(false);
@@ -61,6 +63,11 @@ export default function CommentSection({ videoId, commentsEnabled, commentPrice 
       return;
     }
 
+    if (!token) {
+      setError('Authentication in progress. Please try again in a moment.');
+      return;
+    }
+
     if (!newComment.trim()) {
       setError('Please enter a comment');
       return;
@@ -76,6 +83,7 @@ export default function CommentSection({ videoId, commentsEnabled, commentPrice 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           videoId,
@@ -89,15 +97,21 @@ export default function CommentSection({ videoId, commentsEnabled, commentPrice 
       const data = await response.json();
 
       if (response.ok) {
-        // Success!
         setNewComment('');
         setShowAddCreditsPrompt(false);
-        await fetchComments(); // Refresh comments
+        await fetchComments();
 
-        // Show success message if payment was required
-        if (commentPrice > 0) {
-          alert(`✅ Comment posted! $${commentPrice} deducted from your session balance.`);
+        if (data.balance?.hasSession) {
+          window.dispatchEvent(new Event('sessionUpdated'));
         }
+
+        showToast({
+          title: 'Comment posted',
+          description: commentPrice > 0
+            ? `Comment posted! $${commentPrice} USDC deducted from your session balance.`
+            : 'Thanks for joining the conversation.',
+          variant: 'success',
+        });
       } else if (response.status === 402) {
         // Payment required - insufficient session balance
         setError(data.message || 'Insufficient session balance');
@@ -107,10 +121,20 @@ export default function CommentSection({ videoId, commentsEnabled, commentPrice 
         setError(data.error || 'Comments are disabled for this video');
       } else {
         setError(data.error || 'Failed to post comment');
+        showToast({
+          title: 'Failed to post comment',
+          description: data.error || 'Something went wrong while posting your comment.',
+          variant: 'error',
+        });
       }
     } catch (error: any) {
       console.error('Error submitting comment:', error);
       setError('Failed to post comment. Please try again.');
+      showToast({
+        title: 'Failed to post comment',
+        description: 'Please try again.',
+        variant: 'error',
+      });
     } finally {
       setSubmitting(false);
     }
@@ -196,8 +220,11 @@ export default function CommentSection({ videoId, commentsEnabled, commentPrice 
                 <button
                   type="button"
                   onClick={() => {
-                    // Trigger the SessionCreationModal by dispatching an event or using a global state
-                    alert('Please add credits to your session balance from the sidebar to comment on this video.');
+                    showToast({
+                      title: 'Top up required',
+                      description: 'Open the sidebar to add credits to your session balance, then try again.',
+                      variant: 'info',
+                    });
                   }}
                   className="mt-2 text-sm text-purple-400 hover:text-purple-300 underline"
                 >
