@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { SolanaWalletProvider } from './contexts/SolanaWalletProvider';
@@ -25,6 +25,7 @@ import ButtonDemo from './pages/ButtonDemo';
 function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
   const { publicKey, connected } = useWallet();
+  const location = useLocation();
 
   // Use wallet address as key to force remount when wallet changes
   // This ensures all component state (like form inputs) is completely reset
@@ -42,6 +43,11 @@ function AppContent() {
 
     window.dispatchEvent(new CustomEvent('toggleSidebar'));
   }, []);
+
+  const isVideoRoute = location.pathname.startsWith('/video/');
+  const topOffset = 'calc(env(safe-area-inset-top, 0px) + 1.033rem)';
+  const sideOffset = 'calc(env(safe-area-inset-left, 0px) + 0.9rem)';
+  const sideOffsetRight = 'calc(env(safe-area-inset-right, 0px) + 0.9rem)';
 
   return (
     <div className="min-h-screen bg-neutral-900 text-white">
@@ -66,8 +72,9 @@ function AppContent() {
             className="md:hidden fixed z-30 flex items-center justify-center bg-transparent border-0 p-2"
             aria-label="Open navigation menu"
             style={{
-              top: 'calc(env(safe-area-inset-top, 0px) + 1.033rem)',
-              left: 'calc(env(safe-area-inset-left, 0px) + 0.9rem)',
+              top: topOffset,
+              left: isVideoRoute ? undefined : sideOffset,
+              right: isVideoRoute ? sideOffsetRight : undefined,
             }}
           >
             <img

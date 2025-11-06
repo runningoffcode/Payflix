@@ -7,11 +7,21 @@ import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { fetchTokenMetadata } from '../services/helius-token-metadata.service';
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
+import TokenIcon from './icons/TokenIcon';
 
 /**
  * YouTube-style Navbar for Flix
  * Modern, minimal design with smooth interactions
  */
+const SOL_MINT = 'So11111111111111111111111111111111111111112';
+
+const TOKEN_OVERRIDES: Record<string, { symbol: string; name: string }> = {
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': { symbol: 'USDC', name: 'USD Coin' },
+  '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU': { symbol: 'USDC', name: 'USD Coin' },
+  'DRXxfmg3PEk5Ad6DKuGSfa93ZLHDzXJKxcnjaAUGmW3z': { symbol: 'USDC', name: 'USD Coin' },
+  '9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2': { symbol: 'USDC', name: 'USD Coin' },
+};
+
 export default function FlixNavbar() {
   const location = useLocation();
   const { publicKey, connected, disconnect } = useWallet();
@@ -86,11 +96,18 @@ export default function FlixNavbar() {
       // Combine balance + metadata
       const tokens = tokensWithBalance.map(({ mint, balance }) => {
         const meta = metadata.get(mint);
+        const override = TOKEN_OVERRIDES[mint];
+        const fallbackSymbol = mint.slice(0, 4) + '...';
+        const symbol = override?.symbol || meta?.symbol || fallbackSymbol;
+        const name =
+          override?.name ||
+          meta?.name ||
+          (override?.symbol || meta?.symbol ? symbol : 'Unknown Token');
         return {
           mint,
           balance,
-          symbol: meta?.symbol || mint.slice(0, 4) + '...',
-          name: meta?.name || 'Unknown Token',
+          symbol,
+          name,
           logo: meta?.logo,
         };
       });
@@ -248,9 +265,7 @@ export default function FlixNavbar() {
                           {/* SOL Balance */}
                           <div className="flex items-center justify-between p-3 bg-flix-gray rounded-lg">
                             <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                                <span className="text-white text-xs font-bold">◎</span>
-                              </div>
+                              <TokenIcon mint={SOL_MINT} symbol="SOL" className="w-8 h-8" />
                               <div>
                                 <div className="text-sm font-semibold text-white">SOL</div>
                                 <div className="text-xs text-flix-text-secondary">Solana</div>
@@ -271,18 +286,25 @@ export default function FlixNavbar() {
                               className="flex items-center justify-between p-3 bg-flix-gray rounded-lg"
                             >
                               <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-gradient-to-br from-flix-cyan to-blue-500 rounded-full flex items-center justify-center">
-                                  <span className="text-white text-xs font-bold">
-                                    {token.symbol.slice(0, 1)}
-                                  </span>
-                                </div>
+                                <TokenIcon
+                                  mint={token.mint}
+                                  symbol={token.symbol}
+                                  logo={token.logo}
+                                  className="w-8 h-8"
+                                />
                                 <div>
                                   <div className="text-sm font-semibold text-white">
                                     {token.symbol}
                                   </div>
-                                  <div className="text-xs text-flix-text-secondary truncate max-w-[120px]">
-                                    {token.mint.slice(0, 8)}...
-                                  </div>
+                                  {(token.name && token.name !== 'Unknown Token') ? (
+                                    <div className="text-xs text-flix-text-secondary truncate max-w-[140px]">
+                                      {token.name}
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-flix-text-secondary truncate max-w-[140px]">
+                                      {token.symbol}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               <div className="text-right">
