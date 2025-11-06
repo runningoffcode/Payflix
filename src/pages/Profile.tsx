@@ -409,7 +409,7 @@ export default function Profile() {
 
               <div>
                 <div className="text-3xl font-bold text-pink-400 mb-1 flex items-center gap-2">
-                  ${stats.totalSpent.toFixed(2)}
+                  ${Number(stats.totalSpent ?? 0).toFixed(2)}
                   <UsdcIcon size={16} />
                 </div>
                 <div className="text-sm text-neutral-400">Total Spent</div>
@@ -426,7 +426,7 @@ export default function Profile() {
 
                   <div>
                     <div className="text-3xl font-bold text-green-400 mb-1 flex items-center gap-2">
-                      ${stats.totalEarnings.toFixed(2)}
+                      ${Number(stats.totalEarnings ?? 0).toFixed(2)}
                       <UsdcIcon size={16} />
                     </div>
                     <div className="text-sm text-neutral-400">Total Earnings</div>
@@ -501,7 +501,7 @@ export default function Profile() {
                       </p>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-purple-400 font-medium flex items-center gap-1">
-                          ${video.priceUsdc.toFixed(2)}
+                          ${Number(video.priceUsdc ?? 0).toFixed(2)}
                           <UsdcIcon size={14} />
                         </span>
                         <span className="text-neutral-500">
