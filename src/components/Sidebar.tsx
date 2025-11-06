@@ -659,8 +659,24 @@ export default function Sidebar() {
                 {/* Session Credits Balance */}
                 <div className="px-3 py-2 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-lg border border-purple-500/30">
                   <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-1">
-                      <div className="text-xs text-purple-300 font-medium">💰 Credits</div>
+                    <div className="flex items-center gap-1.5">
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="text-white"
+                      >
+                        <path
+                          d="M15 7V5M15 11V10M15 15V14M15 19V18M21 5H3V9C4.65685 9 6 10.3431 6 12C6 13.6569 4.65685 15 3 15V19H21V15C19.3431 15 18 13.6569 18 12C18 10.3431 19.3431 9 21 9V5Z"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <div className="text-xs text-purple-300 font-medium">Credits</div>
                       {hasActiveSession && (
                         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" title="Active Session" />
                       )}
