@@ -67,9 +67,9 @@ function AppContent() {
             aria-label="Open navigation menu"
           >
             <img
-              src="/payflix-text.svg"
+              src="/payflix-text-logo.svg"
               alt="PayFlix"
-              className="h-8 w-auto object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.45)]"
+              className="h-8 w-auto object-contain"
             />
           </button>
 
