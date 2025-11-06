@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { useWallet } from '../hooks/useWallet';
-import { useWalletModal } from '../hooks/useWallet';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { motion } from 'framer-motion';
 import { GradientButton } from '@/components/ui/GradientButton';
 import UsdcIcon from '@/components/icons/UsdcIcon';

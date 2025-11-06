@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useWallet } from '../hooks/useWallet';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface Comment {

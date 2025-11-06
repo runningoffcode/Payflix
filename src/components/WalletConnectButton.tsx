@@ -1,7 +1,7 @@
-import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { useCreateWallet } from '@privy-io/react-auth/solana';
 import { useEffect, useState, useRef } from 'react';
-import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
+import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GradientButton } from './ui/GradientButton';
@@ -11,38 +11,11 @@ import { fetchTokenMetadata, type TokenMetadata } from '../services/helius-token
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
 
 export default function WalletConnectButton() {
-  const { user: privyUser, login, authenticated, ready } = usePrivy();
-  const { createWallet } = useCreateWallet();
+  const { publicKey, connected, connecting, disconnect } = useWallet();
+  const { connection } = useConnection();
+  const { setVisible } = useWalletModal();
   const { logout: authLogout } = useAuth();
-  const { wallets } = useWallets();
-  const connection = new Connection('https://devnet.helius-rpc.com/?api-key=84db05e3-e9ad-479e-923e-80be54938a18', 'confirmed');
 
-  // Get Solana wallet address from Privy (connected wallet OR embedded wallet)
-  const getWalletAddress = (): string | null => {
-    if (!privyUser) return null;
-
-    // Try to get address from connected Solana wallets first
-    const solanaWallets = wallets?.filter((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana');
-    if (solanaWallets && solanaWallets.length > 0) {
-      return solanaWallets[0].address;
-    }
-
-    // Fallback to embedded wallet from linkedAccounts
-    const embeddedWallet = privyUser.linkedAccounts?.find(
-      (acc: any) => acc.type === 'wallet' && acc.chainType === 'solana'
-    );
-    if (embeddedWallet) {
-      return embeddedWallet.address;
-    }
-
-    return null;
-  };
-
-  const walletAddress = getWalletAddress();
-  const publicKey = walletAddress ? new PublicKey(walletAddress) : null;
-  const connected = authenticated && !!walletAddress;
-  const connecting = !ready;
-  const [creatingWallet, setCreatingWallet] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [allTokenBalances, setAllTokenBalances] = useState<{ mint: string; balance: number; symbol: string; name: string; logo?: string }[]>([]);
@@ -139,27 +112,16 @@ export default function WalletConnectButton() {
     if (connected) {
       console.log('🔵 WalletConnectButton clicked! Dropdown state:', showDropdown);
       setShowDropdown(!showDropdown);
-    } else if (authenticated && !walletAddress) {
-      // User is logged in with Privy but has no Solana wallet
-      console.log('🔵 User authenticated but no Solana wallet - creating one...');
-      handleCreateWallet();
     } else {
-      login();
+      // Open wallet selection modal
+      setVisible(true);
     }
   };
 
-  const handleCreateWallet = async () => {
-    setCreatingWallet(true);
-    try {
-      console.log('🔵 Creating Solana embedded wallet...');
-      await createWallet({ chainType: 'solana' });
-      console.log('✅ Solana wallet created!');
-    } catch (error) {
-      console.error('❌ Error creating wallet:', error);
-      alert('Failed to create wallet. Please try again or contact support.');
-    } finally {
-      setCreatingWallet(false);
-    }
+  const handleDisconnect = () => {
+    setShowDropdown(false);
+    disconnect();
+    authLogout();
   };
 
   const formatAddress = (address: string) => {
@@ -174,20 +136,13 @@ export default function WalletConnectButton() {
           disabled={connecting}
           className="min-w-[180px]"
         >
-          {connecting || creatingWallet ? (
+          {connecting ? (
             <div className="flex items-center gap-2">
               <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span>{creatingWallet ? 'Creating Wallet...' : 'Connecting...'}</span>
-            </div>
-          ) : authenticated && !walletAddress ? (
-            <div className="flex items-center gap-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              <span>Create Wallet</span>
+              <span>Connecting...</span>
             </div>
           ) : connected ? (
             <div className="flex items-center gap-2">
@@ -316,9 +271,8 @@ export default function WalletConnectButton() {
                 <button
                   onClick={() => {
                     setShowDropdown(false);
-                    // Logout then login again to change wallet
-                    authLogout();
-                    setTimeout(() => login(), 500);
+                    // Open wallet selector to change wallet
+                    setVisible(true);
                   }}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium transition-colors"
                 >
@@ -328,10 +282,7 @@ export default function WalletConnectButton() {
                   Change Wallet
                 </button>
                 <button
-                  onClick={() => {
-                    setShowDropdown(false);
-                    authLogout();
-                  }}
+                  onClick={handleDisconnect}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm font-medium transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -345,19 +296,7 @@ export default function WalletConnectButton() {
         </AnimatePresence>
       </div>
 
-      {!connected && authenticated && (
-        <button
-          onClick={() => {
-            console.log('🔵 Logging out from Privy...');
-            authLogout();
-          }}
-          className="text-sm text-red-400 hover:text-red-300 transition-colors"
-        >
-          Logout
-        </button>
-      )}
-
-      {!connected && !authenticated && (
+      {!connected && (
         <div className="text-sm text-neutral-400">
           <a
             href="https://phantom.app/"

@@ -5,11 +5,14 @@
  */
 
 import { useEffect, useState, useRef } from 'react';
-import { useWallet } from '../hooks/useWallet';
+import { useWallet } from '@solana/wallet-adapter-react';
 import SessionCreationModal from './SessionCreationModal';
 
 export default function SessionManager() {
-  const { connected, publicKey, walletAddress } = useWallet();
+  const { connected, publicKey } = useWallet();
+
+  // Derive wallet address from publicKey
+  const walletAddress = publicKey?.toBase58();
   const [showModal, setShowModal] = useState(false);
   const [hasActiveSession, setHasActiveSession] = useState(false);
   const [checking, setChecking] = useState(false);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useWallet } from '../hooks/useWallet';
-import { useWalletModal } from '../hooks/useWallet';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useAuth } from '../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import AnalyticsDashboard from '../components/creator/AnalyticsDashboard';

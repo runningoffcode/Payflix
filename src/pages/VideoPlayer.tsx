@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useWallet, useConnection } from '../hooks/useWallet';
-import { useWalletModal } from '../hooks/useWallet';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { PublicKey, Transaction } from '@solana/web3.js';
 import { createTransferInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
 import UnlockButton from '../components/UnlockButton';
@@ -37,9 +37,12 @@ const USDC_MINT = usdcMintPublicKey();
 
 export default function VideoPlayer() {
   const { id } = useParams<{ id: string }>();
-  const { publicKey, walletAddress, connected, signTransaction } = useWallet();
+  const { publicKey, connected, signTransaction } = useWallet();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
+
+  // Derive wallet address from publicKey
+  const walletAddress = publicKey?.toBase58();
 
   const [video, setVideo] = useState<Video | null>(null);
   const [loading, setLoading] = useState(true);

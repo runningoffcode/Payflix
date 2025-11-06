@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useWallet } from '../hooks/useWallet';
+import { useWallet } from '@solana/wallet-adapter-react';
 import WalletConnectButton from '../components/WalletConnectButton';
 import UsdcIcon from '../components/icons/UsdcIcon';
 
@@ -23,7 +23,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [ownedVideoIds, setOwnedVideoIds] = useState<string[]>([]);
-  const { connected, publicKey, walletAddress } = useWallet();
+  const { connected, publicKey } = useWallet();
+
+  // Derive wallet address from publicKey
+  const walletAddress = publicKey?.toBase58();
 
   const categories = ['All', 'Entertainment', 'Gaming', 'Music', 'Education', 'Technology', 'Lifestyle'];
 
