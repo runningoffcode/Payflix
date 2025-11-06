@@ -539,16 +539,24 @@ export default function SessionCreationModal({
         {/* Success Step */}
         {step === 'success' && (
           <div className="text-center py-8">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500 flex items-center justify-center">
-              <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
+            <div className="relative w-14 h-14 mx-auto mb-4 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full bg-[#C56BCE] opacity-70 blur-lg" />
+              <div className="relative rounded-full w-full h-full bg-gradient-to-br from-[#C56BCE] to-[#9F4BC4] flex items-center justify-center shadow-[0_0_25px_rgba(197,107,206,0.45)]">
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.4}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">
-              Seamless Payments Enabled!
-            </h3>
-            <p className="text-neutral-400 text-sm">
-              You can now watch videos without popups for 24 hours
+            <p className="text-neutral-100 text-sm font-medium">
+              Tap. Pay. Play. It's that easy.
             </p>
           </div>
         )}
