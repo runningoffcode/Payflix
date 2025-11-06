@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useWallet, useConnection } from '../hooks/useWallet';
-import { useWalletModal } from '../hooks/useWallet';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,13 +32,16 @@ export default function Sidebar() {
   const [fetchingTokens, setFetchingTokens] = useState(false);
   const walletDropdownRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
-  const { connected, publicKey, walletAddress } = useWallet();
+  const { connected, publicKey } = useWallet();
   const { logout } = useAuth();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
 
   // USDC Mint Address - Uses environment variable or defaults to devnet USDC
   const USDC_MINT = usdcMintPublicKey();
+
+  // Derive wallet address from publicKey
+  const walletAddress = publicKey?.toBase58();
 
   useEffect(() => {
     if (connected && walletAddress) {
