@@ -1,4 +1,5 @@
 import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { useCreateWallet } from '@privy-io/react-auth/solana';
 import { useEffect, useState, useRef } from 'react';
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
@@ -10,7 +11,8 @@ import { fetchTokenMetadata, type TokenMetadata } from '../services/helius-token
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
 
 export default function WalletConnectButton() {
-  const { user: privyUser, login, authenticated, ready, createWallet } = usePrivy();
+  const { user: privyUser, login, authenticated, ready } = usePrivy();
+  const { createWallet } = useCreateWallet();
   const { logout: authLogout } = useAuth();
   const { wallets } = useWallets();
   const connection = new Connection('https://devnet.helius-rpc.com/?api-key=84db05e3-e9ad-479e-923e-80be54938a18', 'confirmed');

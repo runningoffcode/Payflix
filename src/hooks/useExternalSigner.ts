@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { useCreateWallet } from '@privy-io/react-auth/solana';
 
 /**
  * Hook that links an external Solana wallet (Phantom/Backpack) exactly once
@@ -8,6 +9,7 @@ import { usePrivy, useWallets } from '@privy-io/react-auth';
 export function useExternalSigner() {
   const privy = usePrivy() as any;
   const { linkWallet, getWallets, wallets: privyWalletsApi } = privy;
+  const { createWallet } = useCreateWallet();
   const walletsContext = useWallets() as {
     wallets: any[];
     refresh?: () => Promise<void>;
@@ -66,6 +68,24 @@ export function useExternalSigner() {
         walletsRef.current = [linkedWallet, ...(walletsRef.current || [])];
       } else {
         console.log('   linkWallet returned: null/undefined');
+      }
+
+      // If linkWallet did not return a signer, attempt to create an embedded wallet
+      if ((!linkedWallet || !canSign(linkedWallet)) && typeof createWallet === 'function') {
+        try {
+          console.log('🛠 linkWallet missing signer — creating embedded Solana wallet via createWallet()');
+          const { wallet: createdWallet } = await createWallet({ chainType: 'solana' });
+          if (createdWallet) {
+            walletsRef.current = [createdWallet, ...(walletsRef.current || [])];
+            if (canSign(createdWallet)) {
+              console.log('✅ createWallet produced a signer!');
+              setSigner(createdWallet);
+              return createdWallet;
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️  createWallet({ chainType: "solana" }) failed:', error);
+        }
       }
 
       // Wait for Privy to process the link
