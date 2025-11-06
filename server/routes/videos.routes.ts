@@ -132,7 +132,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       creatorId: video.creatorId,
       creatorWallet: video.creatorWallet,
       commentsEnabled: video.commentsEnabled ?? true,
-      commentPrice: video.commentPrice ?? 0,
+      commentPrice: Number(video.commentPrice ?? 0),
       createdAt: video.createdAt,
     });
   } catch (error) {
