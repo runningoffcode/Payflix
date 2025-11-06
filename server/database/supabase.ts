@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { User, Video, Payment, VideoAccess } from '../types';
+import type { SearchVideosParams, VideoWithCreatorInfo } from './db-factory';
 
 /**
  * Supabase Database Service
@@ -190,13 +191,20 @@ class SupabaseDatabase {
     return this.mapVideoFromDb(data);
   }
 
-  async getAllVideos(): Promise<Video[]> {
-    // 🌐 Web3 principle: Only show non-archived videos in public listings
-    // Archived videos remain accessible to buyers who purchased them
+  async getAllVideos(): Promise<VideoWithCreatorInfo[]> {
     const { data, error } = await this.supabase
       .from('videos')
-      .select('*')
-      .eq('archived', false) // Filter out archived videos
+      .select(
+        `
+        *,
+        creator:users!creator_id (
+          id,
+          username,
+          profile_image_url
+        )
+      `
+      )
+      .eq('archived', false)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -204,12 +212,7 @@ class SupabaseDatabase {
       return [];
     }
 
-    console.log(`📊 Supabase query returned ${data?.length || 0} non-archived videos`);
-    if (data && data.length > 0) {
-      console.log('   Sample video:', data[0].title, '- Price:', data[0].price_usdc);
-    }
-
-    return data.map((v) => this.mapVideoFromDb(v));
+    return (data || []).map((row) => this.mapVideoWithCreator(row));
   }
 
   async getVideosByCreator(creatorId: string): Promise<Video[]> {
@@ -225,6 +228,72 @@ class SupabaseDatabase {
     }
 
     return data.map((v) => this.mapVideoFromDb(v));
+  }
+
+  async searchVideos(params: SearchVideosParams): Promise<{ videos: VideoWithCreatorInfo[]; total: number }> {
+    const {
+      search,
+      limit = 20,
+      offset = 0,
+      orderBy = 'created_at',
+      orderDirection = 'desc',
+      category,
+    } = params;
+
+    const trimmed = search.trim();
+    if (!trimmed) {
+      return {
+        videos: [],
+        total: 0,
+      };
+    }
+
+    const sanitizeForLike = (value: string) =>
+      value.replace(/[%_]/g, (char) => `\\${char}`);
+
+    const wildcard = `%${sanitizeForLike(trimmed).toLowerCase()}%`;
+
+    let query = this.supabase
+      .from('videos')
+      .select(
+        `
+        *,
+        creator:users!creator_id (
+          id,
+          username,
+          profile_image_url
+        )
+      `,
+        { count: 'exact', head: false }
+      )
+      .eq('archived', false);
+
+    const orConditions = [
+      `title.ilike.${wildcard}`,
+      `description.ilike.${wildcard}`,
+      `creator.username.ilike.${wildcard}`,
+    ];
+
+    query = query.or(orConditions.join(','));
+
+    if (category) {
+      query = query.eq('category', category);
+    }
+
+    query = query.order(orderBy, { ascending: orderDirection === 'asc' });
+    query = query.range(offset, offset + limit - 1);
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error('Error searching videos:', error);
+      throw new Error(`Failed to search videos: ${error.message}`);
+    }
+
+    return {
+      videos: (data || []).map((row) => this.mapVideoWithCreator(row)),
+      total: count || 0,
+    };
   }
 
   async updateVideo(id: string, updates: Partial<Video>): Promise<Video | null> {
@@ -557,6 +626,15 @@ class SupabaseDatabase {
       archived: data.archived || false, // Default to false if not set
       createdAt: new Date(data.created_at),
       updatedAt: new Date(data.updated_at),
+    };
+  }
+
+  private mapVideoWithCreator(data: any): VideoWithCreatorInfo {
+    const base = this.mapVideoFromDb(data);
+    return {
+      ...base,
+      creatorUsername: data.creator?.username ?? null,
+      creatorProfilePicture: data.creator?.profile_image_url ?? null,
     };
   }
 

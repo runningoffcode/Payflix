@@ -32,32 +32,75 @@ const upload = multer({
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const videos = await db.getAllVideos();
+    const { search, category, page = '1', limit = '20', order, sort } = req.query;
 
-    // Fetch creator info for each video
-    const videoListPromises = videos.map(async (v) => {
-      const creator = await db.getUserById(v.creatorId);
+    const parsedLimit = Math.min(Math.max(parseInt(String(limit), 10) || 20, 1), 50);
+    const parsedPage = Math.max(parseInt(String(page), 10) || 1, 1);
+    const offset = (parsedPage - 1) * parsedLimit;
 
-      return {
-        id: v.id,
-        title: v.title,
-        description: v.description,
-        category: v.category,
-        thumbnailUrl: v.thumbnailUrl,
-        priceUsdc: v.priceUsdc,
-        duration: v.duration,
-        views: v.views,
-        creatorId: v.creatorId,
-        creatorWallet: v.creatorWallet,
-        creatorName: creator?.username || 'Anonymous Creator',
-        creatorProfilePicture: creator?.profilePictureUrl || null,
-        createdAt: v.createdAt,
-      };
+    const normalizedCategory =
+      typeof category === 'string' && category.trim().length > 0 && category.toLowerCase() !== 'all'
+        ? category.trim()
+        : undefined;
+
+    const orderByParam =
+      typeof sort === 'string' && ['created_at', 'views', 'price_usdc'].includes(sort)
+        ? (sort as 'created_at' | 'views' | 'price_usdc')
+        : 'created_at';
+
+    const orderDirectionParam =
+      typeof order === 'string' && order.toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+    let videos;
+    let total;
+
+    if (typeof search === 'string' && search.trim().length > 0) {
+      const result = await db.searchVideos({
+        search,
+        limit: parsedLimit,
+        offset,
+        category: normalizedCategory,
+        orderBy: orderByParam,
+        orderDirection: orderDirectionParam,
+      });
+
+      videos = result.videos;
+      total = result.total;
+    } else {
+      const allVideos = await db.getAllVideos();
+      const filtered = normalizedCategory
+        ? allVideos.filter((video) => video.category === normalizedCategory)
+        : allVideos;
+
+      total = filtered.length;
+      videos = filtered.slice(offset, offset + parsedLimit);
+    }
+
+    const videoList = videos.map((v) => ({
+      id: v.id,
+      title: v.title,
+      description: v.description,
+      category: v.category,
+      thumbnailUrl: v.thumbnailUrl,
+      priceUsdc: v.priceUsdc,
+      duration: v.duration,
+      views: v.views,
+      creatorId: v.creatorId,
+      creatorWallet: v.creatorWallet,
+      creatorName: v.creatorUsername || 'Anonymous Creator',
+      creatorProfilePicture: v.creatorProfilePicture || null,
+      createdAt: v.createdAt,
+    }));
+
+    res.json({
+      videos: videoList,
+      pagination: {
+        total,
+        page: parsedPage,
+        limit: parsedLimit,
+        hasMore: offset + videoList.length < total,
+      },
     });
-
-    const videoList = await Promise.all(videoListPromises);
-
-    res.json({ videos: videoList });
   } catch (error) {
     console.error('Error fetching videos:', error);
     res.status(500).json({ error: 'Failed to fetch videos' });

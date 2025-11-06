@@ -2,6 +2,21 @@ import config from '../config';
 import { postgresDb } from './postgres';
 import { db as memoryDb } from './index';
 import { db as supabaseDb } from './supabase';
+import type { Video } from '../types';
+
+export interface SearchVideosParams {
+  search: string;
+  limit?: number;
+  offset?: number;
+  orderBy?: 'created_at' | 'views' | 'price_usdc';
+  orderDirection?: 'asc' | 'desc';
+  category?: string;
+}
+
+export interface VideoWithCreatorInfo extends Video {
+  creatorUsername?: string | null;
+  creatorProfilePicture?: string | null;
+}
 
 /**
  * Database Factory
@@ -20,7 +35,11 @@ export interface Database {
   // Videos
   createVideo(video: any): Promise<any>;
   getVideoById(id: string): Promise<any>;
-  getAllVideos(): Promise<any[]>;
+  getAllVideos(): Promise<VideoWithCreatorInfo[]>;
+  searchVideos(params: SearchVideosParams): Promise<{
+    videos: VideoWithCreatorInfo[];
+    total: number;
+  }>;
   getVideosByCreator(creatorId: string): Promise<any[]>;
   updateVideo(id: string, updates: any): Promise<any>;
   deleteVideo(id: string): Promise<boolean>;

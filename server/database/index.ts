@@ -1,4 +1,5 @@
 import { User, Video, Payment, VideoAccess } from '../types';
+import type { SearchVideosParams, VideoWithCreatorInfo } from './db-factory';
 
 /**
  * In-Memory Database
@@ -53,11 +54,70 @@ class Database {
     return this.videos.get(id) || null;
   }
 
-  async getAllVideos(): Promise<Video[]> {
+  private mapVideoWithCreator(video: Video): VideoWithCreatorInfo {
+    const creator = this.users.get(video.creatorId);
+    return {
+      ...video,
+      creatorUsername: creator?.username || null,
+      creatorProfilePicture: creator?.profilePictureUrl || null,
+    };
+  }
+
+  async getAllVideos(): Promise<VideoWithCreatorInfo[]> {
     // Filter out archived videos from public listings
     return Array.from(this.videos.values())
       .filter((v) => !v.archived)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((video) => this.mapVideoWithCreator(video));
+  }
+
+  async searchVideos(params: SearchVideosParams): Promise<{ videos: VideoWithCreatorInfo[]; total: number }> {
+    const {
+      search,
+      limit = 20,
+      offset = 0,
+      category,
+      orderBy = 'created_at',
+      orderDirection = 'desc',
+    } = params;
+
+    const normalizedSearch = search.trim().toLowerCase();
+
+    let results = Array.from(this.videos.values()).filter((video) => {
+      if (video.archived) return false;
+      if (category && video.category !== category) return false;
+
+      const creator = this.users.get(video.creatorId);
+      const haystack = [
+        video.title,
+        video.description,
+        creator?.username ?? '',
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(normalizedSearch);
+    });
+
+    results = results.sort((a, b) => {
+      const direction = orderDirection === 'asc' ? 1 : -1;
+      switch (orderBy) {
+        case 'views':
+          return (a.views - b.views) * direction;
+        case 'price_usdc':
+          return (a.priceUsdc - b.priceUsdc) * direction;
+        case 'created_at':
+        default:
+          return (a.createdAt.getTime() - b.createdAt.getTime()) * direction;
+      }
+    });
+
+    const paged = results.slice(offset, offset + limit).map((video) => this.mapVideoWithCreator(video));
+
+    return {
+      videos: paged,
+      total: results.length,
+    };
   }
 
   async getVideosByCreator(creatorId: string): Promise<Video[]> {

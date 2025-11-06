@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
 import WalletConnectButton from '../components/WalletConnectButton';
 import UsdcIcon from '../components/icons/UsdcIcon';
+
+const RESULTS_PER_PAGE = 24;
 
 interface Video {
   id: string;
@@ -21,8 +23,11 @@ interface Video {
 export default function Home() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [ownedVideoIds, setOwnedVideoIds] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const { connected, publicKey } = useWallet();
 
   // Derive wallet address from publicKey
@@ -31,10 +36,12 @@ export default function Home() {
   const categories = ['All', 'Entertainment', 'Gaming', 'Music', 'Education', 'Technology', 'Lifestyle'];
 
   useEffect(() => {
-    fetchVideos();
-    const interval = setInterval(fetchVideos, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    const handler = window.setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+    }, 250);
+
+    return () => window.clearTimeout(handler);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (connected && walletAddress) {
@@ -45,18 +52,52 @@ export default function Home() {
     }
   }, [connected, walletAddress]);
 
-  const fetchVideos = async () => {
-    try {
-      const response = await fetch('/api/videos');
-      if (!response.ok) throw new Error('Failed to fetch videos');
-      const data = await response.json();
-      setVideos(data.videos || []);
-    } catch (error) {
-      console.error('Error fetching videos:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchVideos = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setError(null);
+
+      const params = new URLSearchParams();
+      params.set('limit', String(RESULTS_PER_PAGE));
+
+      if (debouncedSearch) {
+        params.set('search', debouncedSearch);
+      }
+
+      if (selectedCategory && selectedCategory !== 'All') {
+        params.set('category', selectedCategory);
+      }
+
+      try {
+        const response = await fetch(`/api/videos?${params.toString()}`, { signal });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch videos (${response.status})`);
+        }
+
+        const data = await response.json();
+        setVideos(data.videos || []);
+
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          return;
+        }
+        console.error('Error fetching videos:', err);
+        setError(err.message || 'Failed to fetch videos');
+      } finally {
+        if (!signal?.aborted) {
+          setLoading(false);
+        }
+      }
+    },
+    [debouncedSearch, selectedCategory]
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchVideos(controller.signal);
+    return () => controller.abort();
+  }, [fetchVideos]);
 
   const fetchOwnedVideoIds = async () => {
     if (!walletAddress) return;
@@ -154,6 +195,8 @@ export default function Home() {
               <div className="relative hidden md:block">
                 <input
                   type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search videos..."
                   className="w-64 lg:w-96 px-4 py-2 pl-10 bg-neutral-800/50 border border-neutral-700/50 rounded-lg text-sm focus:outline-none focus:border-purple-500/50 transition-colors"
                 />
@@ -196,6 +239,16 @@ export default function Home() {
             <div className="flex items-center justify-center py-20">
               <div className="animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent"></div>
             </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center text-red-400">
+              <div className="w-24 h-24 rounded-full bg-red-500/10 flex items-center justify-center mb-6">
+                <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M4.93 4.93l14.14 14.14" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Something went wrong</h3>
+              <p className="text-sm text-red-300 max-w-md">{error}</p>
+            </div>
           ) : videos.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center mb-6">
@@ -203,9 +256,13 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-neutral-200 mb-2">No videos yet</h3>
+              <h3 className="text-xl font-semibold text-neutral-200 mb-2">
+                {debouncedSearch ? `No results for "${debouncedSearch}"` : 'No videos yet'}
+              </h3>
               <p className="text-neutral-400 mb-6 max-w-md">
-                Be the first creator to upload content to the platform!
+                {debouncedSearch
+                  ? 'Try refining your keywords or explore another category.'
+                  : 'Be the first creator to upload content to the platform!'}
               </p>
               <Link
                 to="/creator-dashboard"

@@ -1,6 +1,7 @@
 import { Pool, QueryResult } from 'pg';
 import config from '../config';
 import { User, Video, Payment, VideoAccess } from '../types';
+import type { SearchVideosParams, VideoWithCreatorInfo } from './db-factory';
 
 /**
  * PostgreSQL Database Service
@@ -146,11 +147,15 @@ class PostgresDatabase {
     return result.rows[0] ? this.mapVideo(result.rows[0]) : null;
   }
 
-  async getAllVideos(): Promise<Video[]> {
+  async getAllVideos(): Promise<VideoWithCreatorInfo[]> {
     const result = await this.query(
-      "SELECT * FROM videos WHERE status = 'active' ORDER BY created_at DESC"
+      `SELECT v.*, u.username AS creator_username, u.profile_image_url AS creator_profile_picture
+       FROM videos v
+       LEFT JOIN users u ON u.id = v.creator_id
+       WHERE v.status = 'active'
+       ORDER BY v.created_at DESC`
     );
-    return result.rows.map(this.mapVideo);
+    return result.rows.map((row) => this.mapVideoWithCreator(row));
   }
 
   async getVideosByCreator(creatorId: string): Promise<Video[]> {
@@ -159,6 +164,76 @@ class PostgresDatabase {
       [creatorId]
     );
     return result.rows.map(this.mapVideo);
+  }
+
+  async searchVideos(params: SearchVideosParams): Promise<{ videos: VideoWithCreatorInfo[]; total: number }> {
+    const {
+      search,
+      limit = 20,
+      offset = 0,
+      orderBy = 'created_at',
+      orderDirection = 'desc',
+      category,
+    } = params;
+
+    const trimmed = search.trim();
+    if (!trimmed) {
+      return {
+        videos: [],
+        total: 0,
+      };
+    }
+
+    const normalizedOrder =
+      orderBy === 'views' ? 'views' : orderBy === 'price_usdc' ? 'price_usdc' : 'created_at';
+    const direction = orderDirection === 'asc' ? 'ASC' : 'DESC';
+
+    const filterValues: any[] = [];
+    let whereClause = `WHERE v.status = 'active'`;
+
+    if (category) {
+      filterValues.push(category);
+      whereClause += ` AND v.category = $${filterValues.length}`;
+    }
+
+    const escapedSearch = trimmed.replace(/[%_]/g, (char) => `\\${char}`);
+    filterValues.push(`%${escapedSearch}%`);
+    const searchIndex = filterValues.length;
+
+    whereClause += `
+      AND (
+        v.title ILIKE $${searchIndex} OR
+        v.description ILIKE $${searchIndex} OR
+        u.username ILIKE $${searchIndex}
+      )`;
+
+    const totalResult = await this.query(
+      `SELECT COUNT(*) AS count
+       FROM videos v
+       LEFT JOIN users u ON u.id = v.creator_id
+       ${whereClause}`,
+      filterValues
+    );
+
+    const limitIndex = filterValues.length + 1;
+    const offsetIndex = filterValues.length + 2;
+    const pagedValues = [...filterValues, limit, offset];
+
+    const videoResult = await this.query(
+      `SELECT v.*, u.username AS creator_username, u.profile_image_url AS creator_profile_picture
+       FROM videos v
+       LEFT JOIN users u ON u.id = v.creator_id
+       ${whereClause}
+       ORDER BY v.${normalizedOrder} ${direction}
+       LIMIT $${limitIndex}
+       OFFSET $${offsetIndex}`,
+      pagedValues
+    );
+
+    const videos = videoResult.rows.map((row) => this.mapVideoWithCreator(row));
+    const total = parseInt(totalResult.rows[0]?.count || '0', 10);
+
+    return { videos, total };
   }
 
   async updateVideo(id: string, updates: Partial<Video>): Promise<Video | null> {
@@ -384,6 +459,15 @@ class PostgresDatabase {
       archived: row.archived || false,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    };
+  }
+
+  private mapVideoWithCreator(row: any): VideoWithCreatorInfo {
+    const base = this.mapVideo(row);
+    return {
+      ...base,
+      creatorUsername: row.creator_username || null,
+      creatorProfilePicture: row.creator_profile_picture || null,
     };
   }
 
