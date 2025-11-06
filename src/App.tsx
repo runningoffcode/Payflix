@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -16,6 +16,7 @@ import CreatorDashboard from './pages/CreatorDashboard';
 import Account from './pages/Account';
 import PayFlix from './pages/PayFlix';
 import ButtonDemo from './pages/ButtonDemo';
+import Landing from './pages/Landing';
 
 /**
  * PAYFLIX - Web3 Video Platform
@@ -24,6 +25,8 @@ import ButtonDemo from './pages/ButtonDemo';
 
 function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
+  const [showLanding, setShowLanding] = useState(false);
+  const [landingDismissed, setLandingDismissed] = useState(false);
   const { publicKey, connected } = useWallet();
   const location = useLocation();
 
@@ -35,6 +38,21 @@ function AppContent() {
   const handleEnter = () => {
     setShowSplash(false);
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const hostname = window.location.hostname.toLowerCase();
+    const isLandingDomain = hostname === 'payflix.fun' || hostname === 'www.payflix.fun';
+
+    if (isLandingDomain && location.pathname === '/' && !landingDismissed) {
+      setShowLanding(true);
+    } else {
+      setShowLanding(false);
+    }
+  }, [landingDismissed, location.pathname]);
 
   const handleMobileLogoClick = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -48,6 +66,10 @@ function AppContent() {
   const topOffset = 'calc(env(safe-area-inset-top, 0px) + 1.033rem)';
   const sideOffset = 'calc(env(safe-area-inset-left, 0px) + 0.9rem)';
   const sideOffsetRight = 'calc(env(safe-area-inset-right, 0px) + 0.9rem)';
+
+  if (showLanding) {
+    return <Landing onEnter={() => setLandingDismissed(true)} />;
+  }
 
   return (
     <div className="min-h-screen bg-neutral-900 text-white">
