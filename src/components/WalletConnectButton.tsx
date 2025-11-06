@@ -285,18 +285,6 @@ export default function WalletConnectButton() {
         </AnimatePresence>
       </div>
 
-      {!connected && (
-        <div className="text-sm text-neutral-400">
-          <a
-            href="https://phantom.app/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-purple-400 transition-colors underline"
-          >
-            Get Phantom Wallet
-          </a>
-        </div>
-      )}
     </div>
   );
 }
