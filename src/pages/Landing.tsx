@@ -99,7 +99,7 @@ export default function Landing() {
       <header className="relative z-20 w-full px-6 py-6 sm:px-10">
         <div className="hidden items-center justify-between gap-6 md:flex">
           <img
-            src="/payflix-text-logo.svg"
+            src="/payflix-official-logo.svg"
             alt="PayFlix stacked logo"
             className="h-14 w-auto"
           />
@@ -107,8 +107,10 @@ export default function Landing() {
             {SOCIAL_LINKS.map((link) => (
               <SocialButton key={link.name} {...link} />
             ))}
+            <div className="ml-4">
+              <ContractAddress />
+            </div>
           </div>
-          <ContractAddress />
         </div>
 
         <div className="grid grid-cols-3 items-center gap-3 md:hidden">
