@@ -234,11 +234,11 @@ export default function CommentSection({ videoId, commentsEnabled, commentPrice 
             </div>
           )}
 
-          <div className="mt-3 flex items-center justify-between">
-            <div className="text-xs text-neutral-400">
-              {newComment.length}/1000 characters
-              {commentPrice > 0 && (
-                <span className="ml-3 text-purple-400">
+         <div className="mt-3 flex items-center justify-between">
+           <div className="text-xs text-neutral-400">
+             {newComment.length}/1000 characters
+             {commentPrice > 0 && (
+               <span className="ml-3 text-purple-400">
                   💰 ${commentPrice} USDC will be deducted from your session balance
                 </span>
               )}
@@ -247,8 +247,13 @@ export default function CommentSection({ videoId, commentsEnabled, commentPrice 
               type="submit"
               disabled={submitting || !newComment.trim()}
               className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              title={commentPrice > 0 ? `This will cost $${commentPrice} USDC` : undefined}
             >
-              {submitting ? 'Posting...' : commentPrice > 0 ? `Post ($${commentPrice})` : 'Post Comment'}
+              {submitting
+                ? 'Posting...'
+                : commentPrice > 0
+                  ? `Post ($${commentPrice} USDC)`
+                  : 'Post Comment'}
             </button>
           </div>
         </form>
