@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../src/*"]
+    }
+  },
+  "include": [
+    "./src",
+    "../src/components/ShaderBackground.tsx",
+    "../src/index.css"
+  ],
+  "exclude": [
+    "../node_modules"
+  ]
+}
