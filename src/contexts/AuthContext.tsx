@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { clearAllAppState } from '../utils/clearAppState';
 
@@ -24,8 +24,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { user: privyUser, authenticated, ready, login: privyLogin, logout: privyLogout } = usePrivy();
-  const { wallets } = useWallets();
+  const { publicKey, connected, connecting, disconnect } = useWallet();
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState<User | null>(null);
@@ -35,64 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const previousWalletRef = useRef<string | null>(null);
   const loginInProgressRef = useRef(false);
 
-  // Get wallet address from Privy user (connected wallet OR embedded wallet)
-  const getWalletAddress = (): string | null => {
-    if (!privyUser) {
-      console.log('❌ No Privy user');
-      return null;
-    }
-
-    console.log('🔍 Checking for wallet address...');
-    console.log('   Privy user ID:', privyUser.id);
-    console.log('   Wallets available:', wallets?.length || 0);
-    console.log('   Linked accounts:', privyUser.linkedAccounts?.length || 0);
-
-    // Debug: Log all wallets
-    if (wallets && wallets.length > 0) {
-      console.log('   📋 All wallets:');
-      wallets.forEach((w: any, i: number) => {
-        console.log(`      ${i + 1}. Type: ${w.walletClientType || w.chainType}, Address: ${w.address?.slice(0, 8)}...`);
-      });
-    }
-
-    // Debug: Log all linked accounts
-    if (privyUser.linkedAccounts && privyUser.linkedAccounts.length > 0) {
-      console.log('   📋 All linked accounts:');
-      privyUser.linkedAccounts.forEach((acc: any, i: number) => {
-        console.log(`      ${i + 1}. Type: ${acc.type}, ChainType: ${acc.chainType}, Address: ${acc.address?.slice(0, 8)}...`);
-      });
-    }
-
-    // Try to get address from Solana wallets first
-    const solanaWallets = wallets?.filter((w: any) => w.walletClientType === 'solana' || w.chainType === 'solana');
-    if (solanaWallets && solanaWallets.length > 0) {
-      console.log('   ✅ Found Solana wallet in wallets array:', solanaWallets[0].address.slice(0, 8) + '...');
-      return solanaWallets[0].address;
-    }
-
-    // Fallback to embedded wallet from linkedAccounts
-    const embeddedWallet = privyUser.linkedAccounts?.find(
-      (acc: any) => acc.type === 'wallet' && acc.chainType === 'solana'
-    );
-    if (embeddedWallet) {
-      console.log('   ✅ Found Solana embedded wallet:', embeddedWallet.address.slice(0, 8) + '...');
-      return embeddedWallet.address;
-    }
-
-    // Fallback to any wallet in linkedAccounts
-    const anyWallet = privyUser.linkedAccounts?.find((acc: any) => acc.type === 'wallet');
-    if (anyWallet) {
-      console.log('   ⚠️ Found non-Solana wallet (chainType:', anyWallet.chainType + '):', anyWallet.address?.slice(0, 8) + '...');
-      console.log('   ⚠️ This might not work with Solana! You may need to create a Solana wallet.');
-      // Don't return non-Solana wallets for this app
-      return null;
-    }
-
-    console.log('   ❌ No wallet found! You need to create a Solana embedded wallet.');
-    return null;
-  };
-
-  const currentWallet = getWalletAddress();
+  // Get wallet address from connected wallet
+  const currentWallet = publicKey?.toBase58() || null;
 
   // Load token from localStorage on mount and validate it
   useEffect(() => {
@@ -146,10 +89,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsValidatingToken(false);
     };
 
-    if (ready) {
+    if (!connecting) {
       validateSavedAuth();
     }
-  }, [currentWallet, ready]);
+  }, [currentWallet, connecting]);
 
   // Detect wallet changes and reset everything
   useEffect(() => {
@@ -209,11 +152,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Auto-login when wallet connects (first time)
   useEffect(() => {
-    console.log('🔍 Auto-login check:', { authenticated, ready, currentWallet, hasUser: !!user, isLoading, isValidatingToken, loginInProgress: loginInProgressRef.current });
+    console.log('🔍 Auto-login check:', { connected, connecting, currentWallet, hasUser: !!user, isLoading, isValidatingToken, loginInProgress: loginInProgressRef.current });
 
-    // Don't auto-login until Privy is ready
-    if (!ready) {
-      console.log('⏳ Privy not ready yet...');
+    // Don't auto-login while wallet is connecting
+    if (connecting) {
+      console.log('⏳ Wallet connecting...');
       return;
     }
 
@@ -229,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (authenticated && currentWallet && !user && !isLoading) {
+    if (connected && currentWallet && !user && !isLoading) {
       console.log('✅ Conditions met - triggering auto-login');
       loginInProgressRef.current = true;
       login()
@@ -240,16 +183,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .finally(() => {
           loginInProgressRef.current = false;
         });
-    } else if (authenticated && currentWallet && user) {
+    } else if (connected && currentWallet && user) {
       console.log('ℹ️ Already logged in:', user);
-    } else if (!authenticated) {
-      console.log('⚠️ User not authenticated with Privy');
+    } else if (!connected) {
+      console.log('⚠️ Wallet not connected');
     } else if (!currentWallet) {
       console.log('⚠️ No wallet address available');
     } else if (isLoading) {
       console.log('⏳ Login in progress...');
     }
-  }, [authenticated, ready, currentWallet, user, isLoading, isValidatingToken]);
+  }, [connected, connecting, currentWallet, user, isLoading, isValidatingToken]);
 
   const login = async (retryCount = 0) => {
     if (!currentWallet) {
@@ -321,8 +264,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     localStorage.removeItem('flix_auth_token');
     localStorage.removeItem('flix_user');
-    // Also logout from Privy
-    privyLogout();
+    // Disconnect wallet
+    disconnect();
   };
 
   const becomeCreator = async () => {

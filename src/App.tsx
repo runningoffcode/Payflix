@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { usePrivy } from '@privy-io/react-auth';
-import { PrivyWalletProvider } from './contexts/PrivyWalletProvider';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { SolanaWalletProvider } from './contexts/SolanaWalletProvider';
 import { AuthProvider } from './contexts/AuthContext';
 import ShaderBackground from './components/ShaderBackground';
 import SplashScreen from './components/SplashScreen';
@@ -23,12 +23,11 @@ import ButtonDemo from './pages/ButtonDemo';
 
 function AppContent() {
   const [showSplash, setShowSplash] = useState(true);
-  const { user, authenticated } = usePrivy();
+  const { publicKey, connected } = useWallet();
 
   // Use wallet address as key to force remount when wallet changes
   // This ensures all component state (like form inputs) is completely reset
-  // Privy user can have either a connected wallet OR an embedded wallet
-  const walletAddress = user?.wallet?.address || user?.linkedAccounts?.find((acc: any) => acc.type === 'wallet')?.address;
+  const walletAddress = publicKey?.toBase58();
   const walletKey = walletAddress || 'no-wallet';
 
   const handleEnter = () => {
@@ -80,11 +79,11 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter>
-      <PrivyWalletProvider>
+      <SolanaWalletProvider>
         <AuthProvider>
           <AppContent />
         </AuthProvider>
-      </PrivyWalletProvider>
+      </SolanaWalletProvider>
     </BrowserRouter>
   );
 }
