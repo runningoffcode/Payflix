@@ -9,6 +9,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, Transaction } from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { GradientButton } from './ui/GradientButton';
+import UsdcIcon from './icons/UsdcIcon';
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
 import { usdcMintPublicKey } from '../config/solana';
 
@@ -515,7 +516,10 @@ export default function SessionCreationModal({
                   Processing...
                 </span>
               ) : (
-                `💰 Deposit $${approvedAmount} USDC`
+                <span className="flex items-center justify-center gap-2">
+                  <UsdcIcon size={18} />
+                  <span className="font-semibold">Deposit ${approvedAmount.toFixed(2)} USDC</span>
+                </span>
               )}
             </GradientButton>
 
