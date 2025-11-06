@@ -369,7 +369,7 @@ export default function Sidebar() {
             setShowProfileMenu(false);
           }
         }}
-        className="fixed md:relative h-full bg-neutral-800 z-40 flex flex-col pt-4 pb-4"
+        className="fixed md:relative h-full md:h-auto md:min-h-screen bg-neutral-800 z-40 flex flex-col pt-4 pb-4"
       >
         {/* Close button for mobile */}
         <button
