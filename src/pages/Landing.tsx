@@ -23,6 +23,149 @@ const SOCIAL_LINKS = [
   },
 ];
 
+const PayflixStackedLogo = ({ className = '' }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 1968 919"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    role="img"
+    aria-label="PayFlix"
+  >
+    <g filter="url(#filter0_d_payflix_stacked)">
+      <path d="M1735 83.1698L1963 83.1698L1635 835.812L1422.35 835.812L1735 83.1698Z" fill="#C56BCE" />
+    </g>
+    <g filter="url(#filter1_d_payflix_stacked)">
+      <path d="M1751 843.17L1947 843.17L1633.28 73.7996L1433.28 73.7997L1751 843.17Z" fill="#C56BCE" />
+    </g>
+    <g filter="url(#filter2_d_payflix_stacked)">
+      <rect x="1242" y="367.17" width="156" height="465" fill="#C56BCE" />
+    </g>
+    <g filter="url(#filter3_d_payflix_stacked)">
+      <rect x="1242" y="63.1698" width="156" height="156" fill="#C56BCE" />
+    </g>
+    <g filter="url(#filter4_d_payflix_stacked)">
+      <path d="M760 63.1698H916V836.17H760V63.1698Z" fill="#C56BCE" />
+      <path d="M760 523.17V367.17H1091V523.17H760Z" fill="#C56BCE" />
+      <path d="M760 219.17V63.1698H1203V219.17H760Z" fill="#C56BCE" />
+    </g>
+    <g filter="url(#filter5_d_payflix_stacked)">
+      <path d="M4 63.1698H160V836.17H4V63.1698Z" fill="#C56BCE" />
+      <path d="M63 63.1698H645V195.17H63V63.1698Z" fill="#C56BCE" />
+      <path d="M646.583 69.6306L644.999 523.271L513 522.81L514.584 69.1698L646.583 69.6306Z" fill="#C56BCE" />
+      <path d="M63 391.17H645V523.17H63V391.17Z" fill="#C56BCE" />
+    </g>
+    <g filter="url(#filter6_d_payflix_stacked)">
+      <path d="M192 547.17H280V836.17H192V547.17Z" fill="#C56BCE" />
+      <path d="M393 547.17H481V836.17H393V547.17Z" fill="#C56BCE" />
+      <path d="M192 635.17V547.17H481V635.17H192Z" fill="#C56BCE" />
+      <path d="M192 763.17V675.17H481V763.17H192Z" fill="#C56BCE" />
+    </g>
+    <g filter="url(#filter7_d_payflix_stacked)">
+      <path d="M955 547.17H1043V836.17H955V547.17Z" fill="#C56BCE" />
+      <path d="M982 836.17V748.17H1203V836.17H982Z" fill="#C56BCE" />
+    </g>
+    <g filter="url(#filter8_d_payflix_stacked)">
+      <path d="M506 547.17H594V675.17H506V547.17Z" fill="#C56BCE" />
+      <path d="M633 547.17H721V675.17H633V547.17Z" fill="#C56BCE" />
+      <path d="M569 691.17H657V836.17H569V691.17Z" fill="#C56BCE" />
+      <path d="M506 763.17V675.17H721V763.17H506Z" fill="#C56BCE" />
+    </g>
+    <defs>
+      <filter id="filter0_d_payflix_stacked" x="1418.35" y="83.1698" width="548.652" height="760.642" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+        <feOffset dy="4" />
+        <feGaussianBlur stdDeviation="2" />
+        <feComposite in2="hardAlpha" operator="out" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_payflix_stacked" />
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_payflix_stacked" result="shape" />
+      </filter>
+      <filter id="filter1_d_payflix_stacked" x="1429.28" y="73.7996" width="521.718" height="777.37" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+        <feOffset dy="4" />
+        <feGaussianBlur stdDeviation="2" />
+        <feComposite in2="hardAlpha" operator="out" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_payflix_stacked" />
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_payflix_stacked" result="shape" />
+      </filter>
+      <filter id="filter2_d_payflix_stacked" x="1238" y="367.17" width="164" height="473" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+        <feOffset dy="4" />
+        <feGaussianBlur stdDeviation="2" />
+        <feComposite in2="hardAlpha" operator="out" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_payflix_stacked" />
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_payflix_stacked" result="shape" />
+      </filter>
+      <filter id="filter3_d_payflix_stacked" x="1238" y="63.1698" width="164" height="164" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+        <feOffset dy="4" />
+        <feGaussianBlur stdDeviation="2" />
+        <feComposite in2="hardAlpha" operator="out" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_payflix_stacked" />
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_payflix_stacked" result="shape" />
+      </filter>
+      <filter id="filter4_d_payflix_stacked" x="756" y="63.1698" width="451" height="781" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+        <feOffset dy="4" />
+        <feGaussianBlur stdDeviation="2" />
+        <feComposite in2="hardAlpha" operator="out" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_payflix_stacked" />
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_payflix_stacked" result="shape" />
+      </filter>
+      <filter id="filter5_d_payflix_stacked" x="0" y="63.1698" width="650.583" height="781" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+        <feOffset dy="4" />
+        <feGaussianBlur stdDeviation="2" />
+        <feComposite in2="hardAlpha" operator="out" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_payflix_stacked" />
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_payflix_stacked" result="shape" />
+      </filter>
+      <filter id="filter6_d_payflix_stacked" x="188" y="547.17" width="297" height="297" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+        <feOffset dy="4" />
+        <feGaussianBlur stdDeviation="2" />
+        <feComposite in2="hardAlpha" operator="out" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_payflix_stacked" />
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_payflix_stacked" result="shape" />
+      </filter>
+      <filter id="filter7_d_payflix_stacked" x="951" y="547.17" width="256" height="297" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
+        <feOffset dy="4" />
+        <feGaussianBlur stdDeviation="2" />
+        <feComposite in2="hardAlpha" operator="out" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_payflix_stacked" />
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_payflix_stacked" result="shape" />
+      </filter>
+      <filter id="filter8_d_payflix_stacked" x="502" y="547.17" width="223" height="297" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+        <feFlood floodOpacity="0" result="BackgroundImageFix" />
+        <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
+        <feOffset dy="4" />
+        <feGaussianBlur stdDeviation="2" />
+        <feComposite in2="hardAlpha" operator="out" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0" />
+        <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_payflix_stacked" />
+        <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_payflix_stacked" result="shape" />
+      </filter>
+    </defs>
+  </svg>
+);
+
 const PLACEHOLDER_CA = '9X7Lk1d4NqCpjQV98zXWitDdJsa1LkM7dHPYVL7eXy3a';
 
 function SocialButton({ name, href, icon, className = '' }: (typeof SOCIAL_LINKS)[number] & { className?: string }) {
@@ -98,28 +241,18 @@ export default function Landing() {
 
       <header className="relative z-20 w-full px-6 py-6 sm:px-10">
         <div className="hidden items-center justify-between gap-6 md:flex">
-          <img
-            src="/payflix-official-logo.svg"
-            alt="PayFlix stacked logo"
-            className="h-14 w-auto"
-          />
-          <div className="flex items-center gap-3">
+          <PayflixStackedLogo className="h-12 w-auto" />
+          <div className="flex items-center gap-4">
             {SOCIAL_LINKS.map((link) => (
               <SocialButton key={link.name} {...link} />
             ))}
-            <div className="ml-4">
-              <ContractAddress />
-            </div>
+            <ContractAddress />
           </div>
         </div>
 
         <div className="grid grid-cols-3 items-center gap-3 md:hidden">
           <div className="flex justify-start">
-            <img
-              src="/payflix-text-logo.svg"
-              alt="PayFlix stacked logo"
-              className="h-10 w-auto"
-            />
+            <PayflixStackedLogo className="h-10 w-auto" />
           </div>
           <div className="flex justify-center">
             <SocialButton
@@ -164,19 +297,19 @@ export default function Landing() {
           Loading the flix…..
         </motion.p>
 
-        <div className="mt-14 flex flex-col items-center gap-2 text-xs text-white/50">
-          <span>Built for creators. Loved by superfans.</span>
-          <span>Solana Pay • USDC Streaming • Instant Access</span>
+        <div className="mt-14 flex flex-col items-center gap-2 text-xs text-white/55">
+          <span>Built for creators. For privacy.</span>
+          <span>Seamless pay-per-view you can trust.</span>
         </div>
       </main>
 
       <footer className="pointer-events-none absolute inset-x-0 bottom-6 z-10 flex items-center justify-center">
         <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-[11px] uppercase tracking-[0.4em] text-white/70 backdrop-blur-md">
-          <span>Scroll-free</span>
+          <span>Ad-Free</span>
           <span className="h-1 w-1 rounded-full bg-white/40" />
-          <span>Ad-free</span>
+          <span>Monetization</span>
           <span className="h-1 w-1 rounded-full bg-white/40" />
-          <span>Creator-first</span>
+          <span>Agentic Commerce</span>
         </div>
       </footer>
     </div>
