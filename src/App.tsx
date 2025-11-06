@@ -63,13 +63,13 @@ function AppContent() {
           <button
             type="button"
             onClick={handleMobileLogoClick}
-            className="md:hidden fixed top-4 left-4 z-50 flex items-center justify-center px-4 py-2 rounded-xl border border-neutral-700/80 bg-neutral-900/80 backdrop-blur-sm shadow-lg transition hover:border-purple-500/70 hover:bg-neutral-900/90"
+            className="md:hidden fixed top-4 left-4 z-50 flex items-center justify-center p-0 bg-transparent border-0"
             aria-label="Open navigation menu"
           >
             <img
               src="/payflix-text.svg"
               alt="PayFlix"
-              className="h-6 w-auto object-contain"
+              className="h-8 w-auto object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.45)]"
             />
           </button>
 
