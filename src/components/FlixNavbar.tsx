@@ -5,7 +5,7 @@ import { useWallet, useConnection } from '../hooks/useWallet';
 import { WalletMultiButton } from '../hooks/useWallet';
 import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
-import { fetchTokenMetadata } from '../services/helius-token-metadata.service';
+import { fetchTokenMetadata, KNOWN_TOKENS } from '../services/helius-token-metadata.service';
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
 import TokenIcon from './icons/TokenIcon';
 
@@ -15,11 +15,12 @@ import TokenIcon from './icons/TokenIcon';
  */
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
-const TOKEN_OVERRIDES: Record<string, { symbol: string; name: string }> = {
-  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': { symbol: 'USDC', name: 'USD Coin' },
-  '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU': { symbol: 'USDC', name: 'USD Coin' },
-  'DRXxfmg3PEk5Ad6DKuGSfa93ZLHDzXJKxcnjaAUGmW3z': { symbol: 'USDC', name: 'USD Coin' },
-  '9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2': { symbol: 'USDC', name: 'USD Coin' },
+const TOKEN_OVERRIDES: Record<string, { symbol: string; name: string; logo?: string }> = {
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': { symbol: 'USDC', name: 'USD Coin', logo: '/usdc-logo.svg' },
+  '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU': { symbol: 'USDC', name: 'USD Coin', logo: '/usdc-logo.svg' },
+  'DRXxfmg3PEk5Ad6DKuGSfa93ZLHDzXJKxcnjaAUGmW3z': { symbol: 'USDC', name: 'USD Coin', logo: '/usdc-logo.svg' },
+  '9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2': { symbol: 'USDC', name: 'USD Coin', logo: '/usdc-logo.svg' },
+  [SOL_MINT]: { symbol: 'SOL', name: 'Solana', logo: '/solana-logo.svg' },
 };
 
 export default function FlixNavbar() {
@@ -97,18 +98,21 @@ export default function FlixNavbar() {
       const tokens = tokensWithBalance.map(({ mint, balance }) => {
         const meta = metadata.get(mint);
         const override = TOKEN_OVERRIDES[mint];
+        const known = KNOWN_TOKENS[mint];
         const fallbackSymbol = mint.slice(0, 4) + '...';
-        const symbol = override?.symbol || meta?.symbol || fallbackSymbol;
+        const symbol = override?.symbol || meta?.symbol || known?.symbol || fallbackSymbol;
         const name =
           override?.name ||
           meta?.name ||
-          (override?.symbol || meta?.symbol ? symbol : 'Unknown Token');
+          known?.name ||
+          (override?.symbol || meta?.symbol || known?.symbol ? symbol : 'Unknown Token');
+        const logo = override?.logo || meta?.logo;
         return {
           mint,
           balance,
           symbol,
           name,
-          logo: meta?.logo,
+          logo,
         };
       });
 
@@ -265,7 +269,7 @@ export default function FlixNavbar() {
                           {/* SOL Balance */}
                           <div className="flex items-center justify-between p-3 bg-flix-gray rounded-lg">
                             <div className="flex items-center space-x-3">
-                              <TokenIcon mint={SOL_MINT} symbol="SOL" className="w-8 h-8" />
+                              <TokenIcon mint={SOL_MINT} symbol="SOL" logo="/solana-logo.svg" className="w-8 h-8" />
                               <div>
                                 <div className="text-sm font-semibold text-white">SOL</div>
                                 <div className="text-xs text-flix-text-secondary">Solana</div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToastContext } from '../contexts/ToastContext';
+import UsdcIcon from './icons/UsdcIcon';
 
 interface Comment {
   id: string;
@@ -238,28 +239,39 @@ export default function CommentSection({ videoId, commentsEnabled, commentPrice 
             </div>
           )}
 
-         <div className="mt-3 flex items-center justify-between">
-           <div className="text-xs text-neutral-400">
-             {newComment.length}/1000 characters
-             {commentPrice > 0 && (
-               <span className="ml-3 text-purple-400">
-                  💰 ${commentPrice} USDC will be deducted from your session balance
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-neutral-400 flex-1">
+            {newComment.length}/1000 characters
+            {commentPrice > 0 && (
+              <span className="ml-3 inline-flex items-center gap-1 text-purple-300 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20">
+                <span className="hidden sm:inline">Only paid comments appear here.</span>
+                <span className="inline-flex items-center gap-1 font-semibold text-white">
+                  Cost: ${commentPrice.toFixed(2)} <UsdcIcon size={12} />
                 </span>
-              )}
-            </div>
-            <button
-              type="submit"
-              disabled={submitting || !newComment.trim()}
-              className="px-6 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              title={commentPrice > 0 ? `This will cost $${commentPrice} USDC` : undefined}
-            >
-              {submitting
-                ? 'Posting...'
-                : commentPrice > 0
-                  ? `Post ($${commentPrice} USDC)`
-                  : 'Post Comment'}
-            </button>
+                <span className="hidden sm:inline text-purple-300">— exclusivity enabled.</span>
+              </span>
+            )}
           </div>
+          <button
+            type="submit"
+            disabled={submitting || !newComment.trim()}
+            className="px-5 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            title={
+              commentPrice > 0 ? `This will cost $${commentPrice.toFixed(2)} USDC` : undefined
+            }
+          >
+            {submitting ? (
+              'Posting...'
+            ) : commentPrice > 0 ? (
+              <>
+                <span>${commentPrice.toFixed(2)} USDC</span>
+                <UsdcIcon size={16} />
+              </>
+            ) : (
+              'Post Comment'
+            )}
+          </button>
+        </div>
         </form>
       ) : (
         <div className="bg-neutral-800/50 rounded-lg p-4 mb-6 text-center">
