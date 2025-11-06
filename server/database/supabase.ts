@@ -268,13 +268,13 @@ class SupabaseDatabase {
       )
       .eq('archived', false);
 
-    const orConditions = [
+    const mainTableConditions = [
       `title.ilike.${wildcard}`,
       `description.ilike.${wildcard}`,
-      `creator.username.ilike.${wildcard}`,
     ];
 
-    query = query.or(orConditions.join(','));
+    query = query.or(mainTableConditions.join(','));
+    query = query.or(`username.ilike.${wildcard}`, { foreignTable: 'creator' });
 
     if (category) {
       query = query.eq('category', category);
