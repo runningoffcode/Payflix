@@ -264,6 +264,15 @@ export class SessionPaymentService {
     } catch (error: any) {
       console.error(`   ❌ Payment failed:`, error.message);
 
+      // Log full error details for debugging
+      if (error.logs) {
+        console.error(`   📋 Transaction logs:`, error.logs);
+      }
+      if (error.cause) {
+        console.error(`   🔍 Error cause:`, error.cause);
+      }
+      console.error(`   📊 Full error:`, error);
+
       return {
         success: false,
         error: error.message,
