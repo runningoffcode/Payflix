@@ -5,12 +5,11 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useWallet } from '../hooks/useWallet';
+import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, Transaction } from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { GradientButton } from './ui/GradientButton';
 import { queueRPCRequest, RPC_PRIORITY } from '../services/rpc-queue.service';
-import { useExternalSigner } from '../hooks/useExternalSigner';
 import { usdcMintPublicKey } from '../config/solana';
 
 interface SessionCreationModalProps {
@@ -27,7 +26,6 @@ export default function SessionCreationModal({
   hasExistingSession = false,
 }: SessionCreationModalProps) {
   const { publicKey, signTransaction, sendTransaction } = useWallet();
-  const { signer: externalSigner, busy: externalBusy, connectExternal } = useExternalSigner();
   const [approvedAmount, setApprovedAmount] = useState<number>(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,70 +132,22 @@ export default function SessionCreationModal({
     }
   }, [isOpen]);
 
-  const hasEmbeddedSigner = !!signTransaction || !!sendTransaction;
-  const hasExternalSigner =
-    !!externalSigner &&
-    (typeof externalSigner.signTransaction === 'function' ||
-      typeof externalSigner.signAndSendTransaction === 'function');
-
   const resolveSignerFns = useCallback(async () => {
     console.log('🔐 Wallet signer availability check...');
-    console.log('   hasEmbeddedSigner:', hasEmbeddedSigner);
-    console.log('   hasExternalSigner:', hasExternalSigner);
-    console.log('   externalSigner:', externalSigner);
+    console.log('   signTransaction:', !!signTransaction);
+    console.log('   sendTransaction:', !!sendTransaction);
 
-    if (hasEmbeddedSigner) {
-      console.log('✅ Using embedded signer (Privy)');
+    if (signTransaction || sendTransaction) {
+      console.log('✅ Using wallet adapter signer');
       return {
         signTransaction,
         sendTransaction,
       };
     }
 
-    if (hasExternalSigner) {
-      console.log('✅ Using cached external signer (Phantom/Backpack)');
-      console.log('   signTransaction:', !!externalSigner?.signTransaction);
-      console.log('   signAndSendTransaction:', !!externalSigner?.signAndSendTransaction);
-      return {
-        signTransaction: externalSigner?.signTransaction
-          ? async (tx: Transaction) => externalSigner.signTransaction(tx)
-          : undefined,
-        sendTransaction: externalSigner?.signAndSendTransaction
-          ? async (tx: Transaction, options?: any) =>
-              externalSigner.signAndSendTransaction(tx, options)
-          : undefined,
-      };
-    }
-
-    console.log('🔗 No signer found - attempting to link external wallet...');
-    const linkedSigner = await connectExternal();
-    console.log('   linkedSigner result:', linkedSigner);
-    console.log('   signTransaction:', !!linkedSigner?.signTransaction);
-    console.log('   signAndSendTransaction:', !!linkedSigner?.signAndSendTransaction);
-
-    if (linkedSigner?.signTransaction || linkedSigner?.signAndSendTransaction) {
-      console.log('✅ External wallet linked successfully');
-      return {
-        signTransaction: linkedSigner.signTransaction
-          ? async (tx: Transaction) => linkedSigner.signTransaction(tx)
-          : undefined,
-        sendTransaction: linkedSigner.signAndSendTransaction
-          ? async (tx: Transaction, options?: any) =>
-              linkedSigner.signAndSendTransaction(tx, options)
-          : undefined,
-      };
-    }
-
-    console.error('❌ No signer available after all attempts');
+    console.error('❌ No signer available');
     return null;
-  }, [
-    connectExternal,
-    externalSigner,
-    hasEmbeddedSigner,
-    hasExternalSigner,
-    sendTransaction,
-    signTransaction,
-  ]);
+  }, [sendTransaction, signTransaction]);
 
   if (!isOpen) return null;
 
