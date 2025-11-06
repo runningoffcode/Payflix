@@ -65,7 +65,7 @@ function AppContent() {
             onClick={handleMobileLogoClick}
             className="md:hidden fixed left-6 z-30 flex items-center justify-center bg-transparent border-0 p-2"
             aria-label="Open navigation menu"
-            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 2.75rem)' }}
+            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1.8rem)' }}
           >
             <img
               src="/payflix-text-flat.svg"
