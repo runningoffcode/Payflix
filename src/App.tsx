@@ -36,7 +36,7 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-900 text-white overflow-hidden">
+    <div className="min-h-screen bg-neutral-900 text-white">
       {/* Three.js Shader Background */}
       <ShaderBackground />
 
@@ -51,12 +51,12 @@ function AppContent() {
           {/* Session Manager - Prompts deposit on wallet connect */}
           <SessionManager />
 
-          <div className="flex h-screen">
+          <div className="flex min-h-screen">
             {/* Sidebar */}
             <Sidebar />
 
             {/* Pages Container */}
-            <div className="flex-1 relative overflow-hidden">
+            <div className="flex-1 relative min-h-screen overflow-y-auto">
               <AnimatePresence mode="wait">
                 <Routes>
                   <Route path="/" element={<Home />} />
