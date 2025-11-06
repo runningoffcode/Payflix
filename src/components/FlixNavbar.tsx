@@ -15,12 +15,39 @@ import TokenIcon from './icons/TokenIcon';
  */
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
-const TOKEN_OVERRIDES: Record<string, { symbol: string; name: string; logo?: string }> = {
-  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': { symbol: 'USDC', name: 'USD Coin', logo: '/usdc-logo.svg' },
-  '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU': { symbol: 'USDC', name: 'USD Coin', logo: '/usdc-logo.svg' },
-  'DRXxfmg3PEk5Ad6DKuGSfa93ZLHDzXJKxcnjaAUGmW3z': { symbol: 'USDC', name: 'USD Coin', logo: '/usdc-logo.svg' },
-  '9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2': { symbol: 'USDC', name: 'USD Coin', logo: '/usdc-logo.svg' },
-  [SOL_MINT]: { symbol: 'SOL', name: 'Solana', logo: '/solana-logo.svg' },
+const TOKEN_OVERRIDES: Record<string, { symbol: string; name: string; logoUrl: string }> = {
+  // USDC variants
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': {
+    symbol: 'USDC',
+    name: 'USD Coin',
+    logoUrl:
+      'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
+  },
+  '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU': {
+    symbol: 'USDC',
+    name: 'USD Coin',
+    logoUrl:
+      'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
+  },
+  'DRXxfmg3PEk5Ad6DKuGSfa93ZLHDzXJKxcnjaAUGmW3z': {
+    symbol: 'USDC',
+    name: 'USD Coin',
+    logoUrl:
+      'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
+  },
+  '9zB1qKtTs7A1rbDpj15fsVrN1MrFxFSyRgBF8hd2fDX2': {
+    symbol: 'USDC',
+    name: 'USD Coin',
+    logoUrl:
+      'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
+  },
+  // SOL
+  [SOL_MINT]: {
+    symbol: 'SOL',
+    name: 'Solana',
+    logoUrl:
+      'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
+  },
 };
 
 export default function FlixNavbar() {
@@ -96,6 +123,7 @@ export default function FlixNavbar() {
 
       // Combine balance + metadata
       const tokens = tokensWithBalance.map(({ mint, balance }) => {
+        console.log('🔹 Dropdown token mint:', mint);
         const meta = metadata.get(mint);
         const override = TOKEN_OVERRIDES[mint];
         const known = KNOWN_TOKENS[mint];
@@ -106,7 +134,7 @@ export default function FlixNavbar() {
           meta?.name ||
           known?.name ||
           (override?.symbol || meta?.symbol || known?.symbol ? symbol : 'Unknown Token');
-        const logo = override?.logo || meta?.logo;
+        const logo = override?.logoUrl || meta?.logo;
         return {
           mint,
           balance,
@@ -269,7 +297,12 @@ export default function FlixNavbar() {
                           {/* SOL Balance */}
                           <div className="flex items-center justify-between p-3 bg-flix-gray rounded-lg">
                             <div className="flex items-center space-x-3">
-                              <TokenIcon mint={SOL_MINT} symbol="SOL" logo="/solana-logo.svg" className="w-8 h-8" />
+                              <TokenIcon
+                                mint={SOL_MINT}
+                                symbol="SOL"
+                                logo={TOKEN_OVERRIDES[SOL_MINT].logoUrl}
+                                className="w-8 h-8"
+                              />
                               <div>
                                 <div className="text-sm font-semibold text-white">SOL</div>
                                 <div className="text-xs text-flix-text-secondary">Solana</div>
