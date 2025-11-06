@@ -357,21 +357,26 @@ export default function Sidebar() {
     }
   };
 
+  useEffect(() => {
+    const handleToggleSidebar = (event: Event) => {
+      if (typeof window === 'undefined') return;
+      if (window.innerWidth >= 768) return;
+
+      const customEvent = event as CustomEvent<{ open?: boolean }>;
+      setIsMobileOpen((prev) => {
+        if (typeof customEvent.detail?.open === 'boolean') {
+          return customEvent.detail.open;
+        }
+        return !prev;
+      });
+    };
+
+    window.addEventListener('toggleSidebar', handleToggleSidebar);
+    return () => window.removeEventListener('toggleSidebar', handleToggleSidebar);
+  }, []);
+
   return (
     <>
-      {/* Mobile Menu Button */}
-      <div className="md:hidden fixed top-4 right-4 z-50">
-        <button
-          onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className="w-10 h-10 flex items-center justify-center rounded-lg bg-neutral-800/80 backdrop-blur-sm border border-neutral-700 text-neutral-200"
-        >
-          <img
-            src="/payflix-official-logo.svg"
-            alt="PayFlix"
-            className="w-7 h-7 object-contain"
-          />
-        </button>
-      </div>
 
       {/* Mobile Overlay */}
       <AnimatePresence>
