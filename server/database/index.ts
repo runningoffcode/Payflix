@@ -1,5 +1,5 @@
 import { User, Video, Payment, VideoAccess } from '../types';
-import type { SearchVideosParams, VideoWithCreatorInfo } from './db-factory';
+import type { SearchVideosParams, VideoWithCreatorInfo, SubscriptionWithCreatorInfo } from './db-factory';
 
 /**
  * In-Memory Database
@@ -10,6 +10,7 @@ class Database {
   private videos: Map<string, Video> = new Map();
   private payments: Map<string, Payment> = new Map();
   private videoAccess: Map<string, VideoAccess> = new Map();
+  private subscriptions: Map<string, Map<string, Date>> = new Map();
 
   // Users
   async createUser(user: Omit<User, 'id' | 'createdAt'>): Promise<User> {
@@ -42,6 +43,67 @@ class Database {
     const updated = { ...user, ...updates };
     this.users.set(id, updated);
     return updated;
+  }
+
+  private ensureSubscriptionBucket(subscriberWallet: string): Map<string, Date> {
+    if (!this.subscriptions.has(subscriberWallet)) {
+      this.subscriptions.set(subscriberWallet, new Map());
+    }
+    return this.subscriptions.get(subscriberWallet)!;
+  }
+
+  async getSubscriberCount(creatorWallet: string): Promise<number> {
+    let count = 0;
+    for (const subscriptions of this.subscriptions.values()) {
+      if (subscriptions.has(creatorWallet)) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  async getSubscriptionsBySubscriber(subscriberWallet: string): Promise<SubscriptionWithCreatorInfo[]> {
+    const bucket = this.subscriptions.get(subscriberWallet);
+    if (!bucket) {
+      return [];
+    }
+
+    return Array.from(bucket.entries()).map(([creatorWallet, subscribedAt]) => {
+      const creator = Array.from(this.users.values()).find(
+        (user) => user.walletAddress === creatorWallet
+      );
+
+      return {
+        id: `${subscriberWallet}_${creatorWallet}`,
+        subscriberWallet,
+        creatorWallet,
+        subscribedAt,
+        creator: creator
+          ? {
+              id: creator.id,
+              walletAddress: creator.walletAddress,
+              username: creator.username,
+              profilePictureUrl: creator.profilePictureUrl,
+              bio: creator.bio ?? null,
+            }
+          : undefined,
+      };
+    });
+  }
+
+  async createSubscription(subscriberWallet: string, creatorWallet: string): Promise<void> {
+    const bucket = this.ensureSubscriptionBucket(subscriberWallet);
+    bucket.set(creatorWallet, new Date());
+  }
+
+  async deleteSubscription(subscriberWallet: string, creatorWallet: string): Promise<void> {
+    const bucket = this.subscriptions.get(subscriberWallet);
+    bucket?.delete(creatorWallet);
+  }
+
+  async isSubscribed(subscriberWallet: string, creatorWallet: string): Promise<boolean> {
+    const bucket = this.subscriptions.get(subscriberWallet);
+    return bucket?.has(creatorWallet) ?? false;
   }
 
   // Videos
@@ -79,6 +141,7 @@ class Database {
       category,
       orderBy = 'created_at',
       orderDirection = 'desc',
+      creatorWallet,
     } = params;
 
     const normalizedSearch = search.trim().toLowerCase();
@@ -86,6 +149,7 @@ class Database {
     let results = Array.from(this.videos.values()).filter((video) => {
       if (video.archived) return false;
       if (category && video.category !== category) return false;
+      if (creatorWallet && video.creatorWallet !== creatorWallet) return false;
 
       const creator = this.users.get(video.creatorId);
       const haystack = [

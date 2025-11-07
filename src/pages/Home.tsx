@@ -1,8 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import WalletConnectButton from '../components/WalletConnectButton';
 import UsdcIcon from '../components/icons/UsdcIcon';
+import { useToastContext } from '@/contexts/ToastContext';
+import { useSubscriptions } from '@/hooks/useSubscriptions';
+import { subscribeToCreator, unsubscribeFromCreator } from '@/services/subscriptions.service';
 
 const RESULTS_PER_PAGE = 24;
 
@@ -29,9 +33,12 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const { connected, publicKey } = useWallet();
-
-  // Derive wallet address from publicKey
   const walletAddress = publicKey?.toBase58();
+  const { setVisible } = useWalletModal();
+  const navigate = useNavigate();
+  const { showToast } = useToastContext();
+  const { subscribedWallets } = useSubscriptions(connected);
+  const [subscriptionBusy, setSubscriptionBusy] = useState<string | null>(null);
 
   const categories = ['All', 'Entertainment', 'Gaming', 'Music', 'Education', 'Technology', 'Lifestyle'];
 
@@ -142,6 +149,56 @@ export default function Home() {
     if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
     return `${Math.floor(diffInSeconds / 604800)} weeks ago`;
   };
+
+  const handleCreatorNavigate = useCallback(
+    (event: React.MouseEvent, wallet: string) => {
+      event.preventDefault();
+      event.stopPropagation();
+      navigate(`/profile/${wallet}`);
+    },
+    [navigate]
+  );
+
+  const handleToggleSubscription = useCallback(
+    async (event: React.MouseEvent, creatorWallet: string) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!creatorWallet) return;
+
+      if (!walletAddress) {
+        setVisible(true);
+        return;
+      }
+
+      setSubscriptionBusy(creatorWallet);
+      try {
+        if (subscribedWallets.has(creatorWallet)) {
+          await unsubscribeFromCreator(walletAddress, creatorWallet);
+          showToast({
+            title: 'Unsubscribed',
+            description: 'Removed from your subscriptions.',
+            variant: 'success',
+          });
+        } else {
+          await subscribeToCreator(walletAddress, creatorWallet);
+          showToast({
+            title: 'Subscribed',
+            description: 'Creator added to your subscriptions.',
+            variant: 'success',
+          });
+        }
+      } catch (error: any) {
+        showToast({
+          title: 'Subscription error',
+          description: error.message || 'Please try again.',
+          variant: 'error',
+        });
+      } finally {
+        setSubscriptionBusy(null);
+      }
+    },
+    [walletAddress, subscribedWallets, setVisible, showToast]
+  );
 
 
   return (
@@ -277,6 +334,9 @@ export default function Home() {
                 .filter((video: any) => selectedCategory === 'All' || video.category === selectedCategory)
                 .map((video: any) => {
                 const isOwned = ownedVideoIds.includes(video.id);
+                const isSubscribedCreator = video.creatorWallet
+                  ? subscribedWallets.has(video.creatorWallet)
+                  : false;
                 return (
                   <div key={video.id} className="group cursor-pointer">
                     <Link to={`/video/${video.id}`}>
@@ -349,7 +409,57 @@ export default function Home() {
                             <UsdcIcon size={14} />
                           </div>
                         </div>
-                        <p className="text-xs text-neutral-400">{video.creatorName || 'Creator'}</p>
+                        <div className="flex items-center justify-between text-xs text-neutral-400">
+                          <button
+                            type="button"
+                            onClick={(event) =>
+                              video.creatorWallet && handleCreatorNavigate(event, video.creatorWallet)
+                            }
+                            className="text-left hover:text-white transition-colors"
+                          >
+                            {video.creatorName || 'Creator'}
+                          </button>
+                          {connected && video.creatorWallet && (
+                            <button
+                              type="button"
+                              onClick={(event) => handleToggleSubscription(event, video.creatorWallet)}
+                              disabled={subscriptionBusy === video.creatorWallet}
+                              className={`p-1.5 rounded-full transition ${
+                                isSubscribedCreator
+                                  ? 'text-purple-400 bg-white/10'
+                                  : 'text-neutral-400 hover:text-white hover:bg-white/10'
+                              }`}
+                            >
+                              {subscriptionBusy === video.creatorWallet ? (
+                                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24">
+                                  <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                    fill="none"
+                                  />
+                                  <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                                  />
+                                </svg>
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                                  />
+                                </svg>
+                              )}
+                            </button>
+                          )}
+                        </div>
                         <p className="text-xs text-neutral-400">
                           {formatViews(video.views)} views • {formatTimeAgo(video.createdAt)}
                         </p>

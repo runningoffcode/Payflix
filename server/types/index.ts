@@ -6,6 +6,7 @@ export interface User {
   username?: string;
   email?: string;
   profilePictureUrl?: string;
+  bio?: string | null;
   isCreator: boolean;
   createdAt: Date;
 }

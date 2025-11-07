@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { User, Video, Payment, VideoAccess } from '../types';
-import type { SearchVideosParams, VideoWithCreatorInfo } from './db-factory';
+import type { SearchVideosParams, VideoWithCreatorInfo, SubscriptionWithCreatorInfo } from './db-factory';
 
 /**
  * Supabase Database Service
@@ -240,6 +240,7 @@ class SupabaseDatabase {
       orderBy = 'created_at',
       orderDirection = 'desc',
       category,
+      creatorWallet,
     } = params;
 
     const trimmed = search.trim();
@@ -277,6 +278,10 @@ class SupabaseDatabase {
 
     query = query.or(mainTableConditions.join(','));
     query = query.or(`username.ilike.${wildcard}`, { foreignTable: 'creator' });
+
+    if (creatorWallet) {
+      query = query.eq('creator_wallet', creatorWallet);
+    }
 
     if (category) {
       query = query.eq('category', category);
@@ -604,6 +609,7 @@ class SupabaseDatabase {
       walletAddress: data.wallet_address,
       username: data.username,
       email: data.email,
+      bio: data.bio,
       profilePictureUrl: data.profile_image_url,
       isCreator: data.is_creator,
       createdAt: new Date(data.created_at),
@@ -797,11 +803,12 @@ class SupabaseDatabase {
     }
   }
 
-  async updateUserProfile(userId: string, updates: { username?: string; profilePicture?: string }): Promise<User | null> {
+  async updateUserProfile(userId: string, updates: { username?: string; profilePicture?: string; bio?: string }): Promise<User | null> {
     const updateData: any = {};
 
     if (updates.username) updateData.username = updates.username;
     if (updates.profilePicture) updateData.profile_picture = updates.profilePicture;
+    if (updates.bio !== undefined) updateData.bio = updates.bio;
 
     const { data, error } = await this.supabase
       .from('users')
@@ -816,6 +823,121 @@ class SupabaseDatabase {
     }
 
     return this.mapUserFromDb(data);
+  }
+
+  async getSubscriberCount(creatorWallet: string): Promise<number> {
+    const { count, error } = await this.supabase
+      .from('subscriptions')
+      .select('*', { count: 'exact', head: true })
+      .eq('creator_wallet', creatorWallet);
+
+    if (error) {
+      console.error('Error fetching subscriber count:', error);
+      return 0;
+    }
+
+    return count || 0;
+  }
+
+  async isSubscribed(subscriberWallet: string, creatorWallet: string): Promise<boolean> {
+    const { data, error } = await this.supabase
+      .from('subscriptions')
+      .select('id')
+      .eq('subscriber_wallet', subscriberWallet)
+      .eq('creator_wallet', creatorWallet)
+      .limit(1)
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking subscription:', error);
+      return false;
+    }
+
+    return Boolean(data);
+  }
+
+  async createSubscription(subscriberWallet: string, creatorWallet: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('subscriptions')
+      .upsert(
+        [
+          {
+            subscriber_wallet: subscriberWallet,
+            creator_wallet: creatorWallet,
+          },
+        ],
+        {
+          onConflict: 'subscriber_wallet,creator_wallet',
+        }
+      );
+
+    if (error) {
+      throw new Error(`Failed to subscribe: ${error.message}`);
+    }
+  }
+
+  async deleteSubscription(subscriberWallet: string, creatorWallet: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('subscriptions')
+      .delete()
+      .eq('subscriber_wallet', subscriberWallet)
+      .eq('creator_wallet', creatorWallet);
+
+    if (error) {
+      throw new Error(`Failed to unsubscribe: ${error.message}`);
+    }
+  }
+
+  async getSubscriptionsBySubscriber(subscriberWallet: string): Promise<SubscriptionWithCreatorInfo[]> {
+    const { data, error } = await this.supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('subscriber_wallet', subscriberWallet)
+      .order('subscribed_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching subscriptions:', error);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    const creatorWallets = Array.from(new Set(data.map((row) => row.creator_wallet)));
+
+    const { data: creators, error: creatorsError } = await this.supabase
+      .from('users')
+      .select('id, wallet_address, username, profile_image_url, bio')
+      .in('wallet_address', creatorWallets);
+
+    if (creatorsError) {
+      console.error('Error fetching creator profiles for subscriptions:', creatorsError);
+    }
+
+    const creatorMap = new Map<string, any>();
+    creators?.forEach((creator) => {
+      creatorMap.set(creator.wallet_address, creator);
+    });
+
+    return data.map((row) => {
+      const creator = creatorMap.get(row.creator_wallet);
+      return {
+        id: row.id,
+        subscriberWallet: row.subscriber_wallet,
+        creatorWallet: row.creator_wallet,
+        subscribedAt: new Date(row.subscribed_at),
+        creator: creator
+          ? {
+              id: creator.id,
+              walletAddress: creator.wallet_address,
+              username: creator.username,
+              profilePictureUrl: creator.profile_image_url,
+              bio: creator.bio,
+            }
+          : undefined,
+      };
+    });
   }
 
   // Video Streaming Sessions (for secure streaming with wallet binding)

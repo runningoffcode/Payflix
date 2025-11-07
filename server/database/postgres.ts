@@ -1,7 +1,7 @@
 import { Pool, QueryResult } from 'pg';
 import config from '../config';
 import { User, Video, Payment, VideoAccess } from '../types';
-import type { SearchVideosParams, VideoWithCreatorInfo } from './db-factory';
+import type { SearchVideosParams, VideoWithCreatorInfo, SubscriptionWithCreatorInfo } from './db-factory';
 
 /**
  * PostgreSQL Database Service
@@ -113,6 +113,66 @@ class PostgresDatabase {
     return result.rows[0] ? this.mapUser(result.rows[0]) : null;
   }
 
+  async getSubscriberCount(creatorWallet: string): Promise<number> {
+    const result = await this.query(
+      'SELECT COUNT(*)::int AS count FROM subscriptions WHERE creator_wallet = $1',
+      [creatorWallet]
+    );
+    return result.rows[0]?.count || 0;
+  }
+
+  async getSubscriptionsBySubscriber(subscriberWallet: string): Promise<SubscriptionWithCreatorInfo[]> {
+    const result = await this.query(
+      `SELECT s.*, u.id AS creator_id, u.username, u.profile_image_url, u.bio
+       FROM subscriptions s
+       LEFT JOIN users u ON u.wallet_address = s.creator_wallet
+       WHERE s.subscriber_wallet = $1
+       ORDER BY s.subscribed_at DESC`,
+      [subscriberWallet]
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      subscriberWallet: row.subscriber_wallet,
+      creatorWallet: row.creator_wallet,
+      subscribedAt: row.subscribed_at,
+      creator: row.creator_id
+        ? {
+            id: row.creator_id,
+            walletAddress: row.creator_wallet,
+            username: row.username,
+            profilePictureUrl: row.profile_image_url,
+            bio: row.bio,
+          }
+        : undefined,
+    }));
+  }
+
+  async createSubscription(subscriberWallet: string, creatorWallet: string): Promise<void> {
+    await this.query(
+      `INSERT INTO subscriptions (subscriber_wallet, creator_wallet)
+       VALUES ($1, $2)
+       ON CONFLICT (subscriber_wallet, creator_wallet)
+       DO UPDATE SET subscribed_at = NOW()`,
+      [subscriberWallet, creatorWallet]
+    );
+  }
+
+  async deleteSubscription(subscriberWallet: string, creatorWallet: string): Promise<void> {
+    await this.query(
+      'DELETE FROM subscriptions WHERE subscriber_wallet = $1 AND creator_wallet = $2',
+      [subscriberWallet, creatorWallet]
+    );
+  }
+
+  async isSubscribed(subscriberWallet: string, creatorWallet: string): Promise<boolean> {
+    const result = await this.query(
+      'SELECT 1 FROM subscriptions WHERE subscriber_wallet = $1 AND creator_wallet = $2 LIMIT 1',
+      [subscriberWallet, creatorWallet]
+    );
+    return result.rowCount > 0;
+  }
+
   // ==================== Videos ====================
 
   async createVideo(video: Omit<Video, 'id' | 'createdAt' | 'updatedAt'>): Promise<Video> {
@@ -174,6 +234,7 @@ class PostgresDatabase {
       orderBy = 'created_at',
       orderDirection = 'desc',
       category,
+      creatorWallet,
     } = params;
 
     const trimmed = search.trim();
@@ -194,6 +255,11 @@ class PostgresDatabase {
     if (category) {
       filterValues.push(category);
       whereClause += ` AND v.category = $${filterValues.length}`;
+    }
+
+    if (creatorWallet) {
+      filterValues.push(creatorWallet);
+      whereClause += ` AND v.creator_wallet = $${filterValues.length}`;
     }
 
     const escapedSearch = trimmed.replace(/[%_]/g, (char) => `\\${char}`);

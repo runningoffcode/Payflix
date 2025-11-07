@@ -82,7 +82,10 @@ router.post('/connect-wallet', async (req: Request, res: Response) => {
  */
 router.get('/profile', async (req: Request, res: Response) => {
   try {
-    const walletAddress = req.headers['x-wallet-address'] as string;
+    const headerWallet = req.headers['x-wallet-address'];
+    const queryWallet = typeof req.query.walletAddress === 'string' ? req.query.walletAddress : undefined;
+
+    const walletAddress = (queryWallet && queryWallet.trim()) || (typeof headerWallet === 'string' ? headerWallet.trim() : '');
 
     if (!walletAddress) {
       return res.status(400).json({ error: 'Wallet address required' });
@@ -94,21 +97,22 @@ router.get('/profile', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get user's video access
-    const videoAccess = await db.getUserVideoAccess(user.id);
-    const payments = await db.getPaymentsByUser(user.id);
+    const isSelf =
+      typeof headerWallet === 'string' &&
+      headerWallet.trim() &&
+      headerWallet.trim() === walletAddress;
 
-    // If creator, get their videos
-    let videos: any[] = [];
-    if (user.isCreator) {
-      videos = await db.getVideosByCreator(user.id);
-    }
+    const videoAccess = isSelf ? await db.getUserVideoAccess(user.id) : [];
+    const payments = isSelf ? await db.getPaymentsByUser(user.id) : [];
+    const creatorVideos = user.isCreator ? await db.getVideosByCreator(user.id) : [];
+    const subscriberCount = await db.getSubscriberCount(user.walletAddress);
 
     res.json({
       user: {
         id: user.id,
         walletAddress: user.walletAddress,
         username: user.username,
+        bio: user.bio,
         profile_picture_url: user.profilePictureUrl,
         isCreator: user.isCreator,
         createdAt: user.createdAt,
@@ -116,11 +120,20 @@ router.get('/profile', async (req: Request, res: Response) => {
       stats: {
         videosOwned: videoAccess.length,
         totalSpent: payments.reduce((sum, p) => sum + p.amount, 0),
-        videosCreated: videos.length,
-        totalEarnings: videos.reduce((sum, v) => sum + v.earnings, 0),
+        videosCreated: creatorVideos.length,
+        totalEarnings: creatorVideos.reduce((sum, v) => sum + v.earnings, 0),
+        subscriberCount,
       },
       purchasedVideos: videoAccess.map((va) => va.videoId),
-      createdVideos: videos.map((v) => v.id),
+      createdVideos: creatorVideos.map((video) => ({
+        id: video.id,
+        title: video.title,
+        description: video.description,
+        priceUsdc: video.priceUsdc,
+        thumbnailUrl: video.thumbnailUrl,
+        views: video.views,
+        createdAt: video.createdAt,
+      })),
     });
   } catch (error) {
     console.error('Error fetching profile:', error);

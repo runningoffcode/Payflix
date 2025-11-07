@@ -11,11 +11,26 @@ export interface SearchVideosParams {
   orderBy?: 'created_at' | 'views' | 'price_usdc';
   orderDirection?: 'asc' | 'desc';
   category?: string;
+  creatorWallet?: string;
 }
 
 export interface VideoWithCreatorInfo extends Video {
   creatorUsername?: string | null;
   creatorProfilePicture?: string | null;
+}
+
+export interface SubscriptionWithCreatorInfo {
+  id: string;
+  subscriberWallet: string;
+  creatorWallet: string;
+  subscribedAt: Date;
+  creator?: {
+    id?: string;
+    walletAddress?: string;
+    username?: string | null;
+    profilePictureUrl?: string | null;
+    bio?: string | null;
+  };
 }
 
 /**
@@ -31,6 +46,11 @@ export interface Database {
   getUserByUsername(username: string): Promise<any>;
   updateUser(id: string, updates: any): Promise<any>;
   updateUserProfile(userId: string, updates: { username?: string; profilePicture?: string; bio?: string }): Promise<any>;
+  getSubscriberCount(creatorWallet: string): Promise<number>;
+  getSubscriptionsBySubscriber(subscriberWallet: string): Promise<SubscriptionWithCreatorInfo[]>;
+  createSubscription(subscriberWallet: string, creatorWallet: string): Promise<void>;
+  deleteSubscription(subscriberWallet: string, creatorWallet: string): Promise<void>;
+  isSubscribed(subscriberWallet: string, creatorWallet: string): Promise<boolean>;
 
   // Videos
   createVideo(video: any): Promise<any>;

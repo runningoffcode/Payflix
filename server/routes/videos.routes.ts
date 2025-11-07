@@ -32,7 +32,7 @@ const upload = multer({
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const { search, category, page = '1', limit = '20', order, sort } = req.query;
+    const { search, category, page = '1', limit = '20', order, sort, creatorWallet: creatorWalletQuery } = req.query;
 
     const parsedLimit = Math.min(Math.max(parseInt(String(limit), 10) || 20, 1), 50);
     const parsedPage = Math.max(parseInt(String(page), 10) || 1, 1);
@@ -51,6 +51,11 @@ router.get('/', async (req: Request, res: Response) => {
     const orderDirectionParam =
       typeof order === 'string' && order.toLowerCase() === 'asc' ? 'asc' : 'desc';
 
+    const creatorWallet =
+      typeof creatorWalletQuery === 'string' && creatorWalletQuery.trim().length > 0
+        ? creatorWalletQuery.trim()
+        : undefined;
+
     let videos;
     let total;
 
@@ -62,15 +67,20 @@ router.get('/', async (req: Request, res: Response) => {
         category: normalizedCategory,
         orderBy: orderByParam,
         orderDirection: orderDirectionParam,
+        creatorWallet,
       });
 
       videos = result.videos;
       total = result.total;
     } else {
       const allVideos = await db.getAllVideos();
-      const filtered = normalizedCategory
+      let filtered = normalizedCategory
         ? allVideos.filter((video) => video.category === normalizedCategory)
         : allVideos;
+
+      if (creatorWallet) {
+        filtered = filtered.filter((video) => video.creatorWallet === creatorWallet);
+      }
 
       total = filtered.length;
       videos = filtered.slice(offset, offset + parsedLimit);

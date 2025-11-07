@@ -17,6 +17,7 @@ import Account from './pages/Account';
 import PayFlix from './pages/PayFlix';
 import ButtonDemo from './pages/ButtonDemo';
 import Landing from './pages/Landing';
+import Subscriptions from './pages/Subscriptions';
 
 /**
  * PAYFLIX - Web3 Video Platform
@@ -119,6 +120,7 @@ function AppContent() {
                   <Route path="/account" element={<Account />} />
                   <Route path="/profile/:wallet" element={<Profile />} />
                   <Route path="/profile" element={<Profile />} />
+                  <Route path="/subscriptions" element={<Subscriptions />} />
                   <Route path="/creator-dashboard" element={<CreatorDashboard />} />
                   <Route path="/button-demo" element={<ButtonDemo />} />
                 </Routes>

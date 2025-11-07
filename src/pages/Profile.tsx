@@ -1,19 +1,22 @@
 import { useEffect, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { motion } from 'framer-motion';
 import { GradientButton } from '@/components/ui/GradientButton';
 import UsdcIcon from '@/components/icons/UsdcIcon';
 import { useToastContext } from '@/contexts/ToastContext';
+import { useSubscriptionStatus } from '@/hooks/useSubscriptions';
 
 interface UserProfile {
   id: string;
-  wallet_address: string;
+  walletAddress?: string;
+  wallet_address?: string;
   username: string;
   profile_picture_url: string | null;
   is_creator: boolean;
   created_at: string;
+  bio?: string | null;
 }
 
 interface ProfileStats {
@@ -21,6 +24,7 @@ interface ProfileStats {
   totalSpent: number;
   videosCreated: number;
   totalEarnings: number;
+  subscriberCount?: number;
 }
 
 interface OwnedVideo {
@@ -32,15 +36,32 @@ interface OwnedVideo {
   createdAt: string;
 }
 
+interface CreatorVideo {
+  id: string;
+  title: string;
+  thumbnailUrl?: string;
+  priceUsdc: number;
+  views: number;
+  createdAt: string;
+  description?: string;
+}
+
 export default function Profile() {
+  const params = useParams<{ wallet?: string }>();
   const { publicKey, connected } = useWallet();
   const { setVisible } = useWalletModal();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showToast } = useToastContext();
-
+  const viewingWallet = params.wallet || publicKey?.toBase58() || null;
+  const isOwnProfile = !params.wallet || (publicKey && params.wallet === publicKey.toBase58());
+  const subscriptionStatus = useSubscriptionStatus(
+    !isOwnProfile && viewingWallet ? viewingWallet : undefined
+  );
+  const canEditProfile = Boolean(isOwnProfile && connected && publicKey);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [ownedVideos, setOwnedVideos] = useState<OwnedVideo[]>([]);
+  const [creatorVideos, setCreatorVideos] = useState<CreatorVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingVideos, setLoadingVideos] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -53,32 +74,58 @@ export default function Profile() {
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
 
   useEffect(() => {
-    if (connected && publicKey) {
-      fetchProfile();
-      fetchOwnedVideos();
+    if (viewingWallet) {
+      fetchProfile(viewingWallet, isOwnProfile);
+      if (isOwnProfile && connected && publicKey) {
+        fetchOwnedVideos();
+      } else {
+        setOwnedVideos([]);
+      }
     } else {
       setLoading(false);
     }
-  }, [connected, publicKey]);
+  }, [viewingWallet, isOwnProfile, connected, publicKey]);
 
-  const fetchProfile = async () => {
-    if (!publicKey) return;
+  useEffect(() => {
+    if (!canEditProfile && isEditing) {
+      setIsEditing(false);
+    }
+  }, [canEditProfile, isEditing]);
 
+  const fetchProfile = async (wallet: string, isSelf: boolean) => {
     setLoading(true);
     try {
-      const walletAddress = publicKey.toBase58();
-
-      const response = await fetch('/api/users/profile', {
-        headers: {
-          'x-wallet-address': walletAddress,
-        },
+      const url = isSelf ? '/api/users/profile' : `/api/users/profile?walletAddress=${wallet}`;
+      const response = await fetch(url, {
+        headers: isSelf
+          ? {
+              'x-wallet-address': wallet,
+            }
+          : undefined,
       });
 
       if (response.ok) {
         const data = await response.json();
         setProfile(data.user);
-        setStats(data.stats);
+        setStats({
+          videosOwned: data.stats?.videosOwned ?? 0,
+          totalSpent: data.stats?.totalSpent ?? 0,
+          videosCreated: data.stats?.videosCreated ?? 0,
+          totalEarnings: data.stats?.totalEarnings ?? 0,
+          subscriberCount: data.stats?.subscriberCount ?? 0,
+        });
         setEditUsername(data.user.username || '');
+        setCreatorVideos(
+          (data.createdVideos || []).map((video: any) => ({
+            id: video.id,
+            title: video.title,
+            thumbnailUrl: video.thumbnailUrl || video.thumbnail_url || '/placeholder-video.jpg',
+            priceUsdc: video.priceUsdc ?? video.price_usdc ?? 0,
+            views: video.views ?? 0,
+            createdAt: video.createdAt || video.created_at || new Date().toISOString(),
+            description: video.description,
+          }))
+        );
       }
     } catch (error) {
       console.error('Failed to fetch profile:', error);
@@ -154,6 +201,39 @@ export default function Profile() {
     }
   };
 
+  const handleProfileSubscriptionToggle = async () => {
+    if (!viewingWallet || isOwnProfile) return;
+
+    if (!connected || !publicKey) {
+      setVisible(true);
+      return;
+    }
+
+    try {
+      if (subscriptionStatus.summary.isSubscribed) {
+        await subscriptionStatus.unsubscribe();
+        showToast({
+          title: 'Unsubscribed',
+          description: 'You will no longer receive updates from this creator.',
+          variant: 'success',
+        });
+      } else {
+        await subscriptionStatus.subscribe();
+        showToast({
+          title: 'Subscribed',
+          description: 'Creator updates will appear in your feed immediately.',
+          variant: 'success',
+        });
+      }
+    } catch (error: any) {
+      showToast({
+        title: 'Subscription failed',
+        description: error.message || 'Please try again.',
+        variant: 'error',
+      });
+    }
+  };
+
   const handleSaveProfile = async () => {
     if (!publicKey) return;
 
@@ -209,7 +289,7 @@ export default function Profile() {
     setProfilePicturePreview(null);
   };
 
-  if (!connected) {
+  if (!viewingWallet) {
     return (
       <main className="flex items-center justify-center h-full relative z-10">
         <motion.div
@@ -245,7 +325,10 @@ export default function Profile() {
     );
   }
 
-  const currentProfilePicture = profilePicturePreview || profile?.profile_picture_url;
+  const normalizedProfilePicture =
+    profile?.profile_picture_url || (profile as any)?.profilePictureUrl || null;
+  const isCreatorUser = (profile as any)?.is_creator ?? (profile as any)?.isCreator;
+  const currentProfilePicture = profilePicturePreview || normalizedProfilePicture;
 
   return (
     <main className="flex flex-col overflow-y-auto h-full relative z-10">
@@ -285,7 +368,7 @@ export default function Profile() {
                 />
               ) : (
                 <div className="w-32 h-32 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-4xl font-bold">
-                  {(profile?.username || publicKey?.toBase58() || 'U')[0].toUpperCase()}
+                  {(profile?.username || viewingWallet || 'U')[0].toUpperCase()}
                 </div>
               )}
 
@@ -312,7 +395,7 @@ export default function Profile() {
 
             {/* Profile Info */}
             <div className="flex-1">
-              {isEditing ? (
+              {canEditProfile && isEditing ? (
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-neutral-400 mb-2">
@@ -372,10 +455,14 @@ export default function Profile() {
                     {profile?.username || 'Anonymous User'}
                   </h1>
                   <p className="text-neutral-400 font-mono text-sm mb-4">
-                    {publicKey?.toBase58().slice(0, 8)}...{publicKey?.toBase58().slice(-8)}
+                    {viewingWallet
+                      ? `${viewingWallet.slice(0, 8)}...${viewingWallet.slice(-8)}`
+                      : ''}
                   </p>
 
-                  {profile?.is_creator && (
+                  {profile?.bio && <p className="text-neutral-300 mb-4">{profile.bio}</p>}
+
+                  {isCreatorUser && (
                     <span className="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full text-purple-400 text-sm font-medium mb-4">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
@@ -384,13 +471,36 @@ export default function Profile() {
                     </span>
                   )}
 
-                  <div className="flex gap-3 mt-6">
-                    <GradientButton onClick={() => setIsEditing(true)}>
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      Edit Profile
-                    </GradientButton>
+                  <div className="flex flex-wrap gap-3 mt-6">
+                    {canEditProfile ? (
+                      <GradientButton onClick={() => setIsEditing(true)}>
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Edit Profile
+                      </GradientButton>
+                    ) : viewingWallet ? (
+                      <button
+                        onClick={handleProfileSubscriptionToggle}
+                        disabled={subscriptionStatus.loading}
+                        className={`group relative overflow-hidden rounded-full px-6 py-2 text-sm font-semibold transition focus:outline-none ${
+                          subscriptionStatus.summary.isSubscribed
+                            ? 'bg-white/10 text-white border border-white/20'
+                            : 'bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 text-white shadow-[0_0_25px_rgba(197,107,206,0.4)]'
+                        }`}
+                      >
+                        <span className="relative z-10">
+                          {subscriptionStatus.loading
+                            ? 'Updating...'
+                            : subscriptionStatus.summary.isSubscribed
+                            ? 'Subscribed'
+                            : 'Subscribe'}
+                        </span>
+                        {!subscriptionStatus.summary.isSubscribed && (
+                          <span className="absolute inset-0 opacity-0 group-hover:opacity-40 bg-white/20 transition" />
+                        )}
+                      </button>
+                    ) : null}
                   </div>
                 </>
               )}
@@ -400,22 +510,26 @@ export default function Profile() {
           {/* Stats */}
           {!isEditing && stats && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mt-8 pt-8 border-t border-neutral-700/50">
-              <div>
-                <div className="text-3xl font-bold text-purple-400 mb-1">
-                  {stats.videosOwned}
-                </div>
-                <div className="text-sm text-neutral-400">Paid-Views</div>
-              </div>
+              {canEditProfile && (
+                <>
+                  <div>
+                    <div className="text-3xl font-bold text-purple-400 mb-1">
+                      {stats.videosOwned}
+                    </div>
+                    <div className="text-sm text-neutral-400">Paid-Views</div>
+                  </div>
 
-              <div>
-                <div className="text-3xl font-bold text-pink-400 mb-1 flex items-center gap-2">
-                  ${Number(stats.totalSpent ?? 0).toFixed(2)}
-                  <UsdcIcon size={16} />
-                </div>
-                <div className="text-sm text-neutral-400">Total Spent</div>
-              </div>
+                  <div>
+                    <div className="text-3xl font-bold text-pink-400 mb-1 flex items-center gap-2">
+                      ${Number(stats.totalSpent ?? 0).toFixed(2)}
+                      <UsdcIcon size={16} />
+                    </div>
+                    <div className="text-sm text-neutral-400">Total Spent</div>
+                  </div>
+                </>
+              )}
 
-              {profile?.is_creator && (
+              {isCreatorUser && (
                 <>
                   <div>
                     <div className="text-3xl font-bold text-green-400 mb-1">
@@ -433,80 +547,142 @@ export default function Profile() {
                   </div>
                 </>
               )}
+
+              {typeof stats.subscriberCount === 'number' && (
+                <div>
+                  <div className="text-3xl font-bold text-cyan-400 mb-1">
+                    {stats.subscriberCount}
+                  </div>
+                  <div className="text-sm text-neutral-400">Subscribers</div>
+                </div>
+              )}
             </div>
           )}
         </motion.div>
 
-        {/* My Library Section */}
+        {canEditProfile && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <h2 className="text-2xl font-semibold text-white mb-6">My Library</h2>
+
+            {loadingVideos ? (
+              <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-xl p-12 text-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-500 border-t-transparent mx-auto mb-4"></div>
+                <p className="text-neutral-400">Loading your videos...</p>
+              </div>
+            ) : ownedVideos.length === 0 ? (
+              <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-xl p-12 text-center">
+                <div className="w-20 h-20 bg-purple-500/10 rounded-full flex items-center justify-center mb-6 mx-auto">
+                  <svg className="w-10 h-10 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </div>
+                <p className="text-neutral-400 mb-8">
+                  You haven't purchased any videos yet
+                </p>
+                <GradientButton asChild>
+                  <Link to="/">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    Browse Videos
+                  </Link>
+                </GradientButton>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {ownedVideos.map((video) => (
+                  <motion.div
+                    key={video.id}
+                    whileHover={{ scale: 1.05 }}
+                    className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-xl overflow-hidden group cursor-pointer"
+                  >
+                    <Link to={`/video/${video.id}`} className="block">
+                      <div className="relative aspect-video overflow-hidden">
+                        <img
+                          src={video.thumbnailUrl}
+                          alt={video.title}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                            <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <h3 className="text-white font-semibold mb-2 line-clamp-2 group-hover:text-purple-400 transition-colors">
+                          {video.title}
+                        </h3>
+                        <p className="text-neutral-400 text-sm mb-3">
+                          {video.creatorName}
+                        </p>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-purple-400 font-medium flex items-center gap-1">
+                            ${Number(video.priceUsdc ?? 0).toFixed(2)}
+                            <UsdcIcon size={14} />
+                          </span>
+                          <span className="text-neutral-500">
+                            Purchased {new Date(video.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.3 }}
+          className="mt-16"
         >
-          <h2 className="text-2xl font-semibold text-white mb-6">My Library</h2>
-
-          {loadingVideos ? (
+          <h2 className="text-2xl font-semibold text-white mb-6">
+            {isOwnProfile ? 'Your Uploads' : 'Creator Uploads'}
+          </h2>
+          {creatorVideos.length === 0 ? (
             <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-xl p-12 text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-500 border-t-transparent mx-auto mb-4"></div>
-              <p className="text-neutral-400">Loading your videos...</p>
-            </div>
-          ) : ownedVideos.length === 0 ? (
-            <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-xl p-12 text-center">
-              <div className="w-20 h-20 bg-purple-500/10 rounded-full flex items-center justify-center mb-6 mx-auto">
-                <svg className="w-10 h-10 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-              </div>
-              <p className="text-neutral-400 mb-8">
-                You haven't purchased any videos yet
+              <p className="text-neutral-400">
+                {isOwnProfile
+                  ? "You haven't uploaded any videos yet."
+                  : 'No videos published yet.'}
               </p>
-              <GradientButton asChild>
-                <Link to="/">
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  Browse Videos
-                </Link>
-              </GradientButton>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {ownedVideos.map((video) => (
+              {creatorVideos.map((video) => (
                 <motion.div
                   key={video.id}
-                  whileHover={{ scale: 1.05 }}
-                  className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-xl overflow-hidden group cursor-pointer"
+                  whileHover={{ scale: 1.02 }}
+                  className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/50 rounded-xl overflow-hidden"
                 >
                   <Link to={`/video/${video.id}`} className="block">
                     <div className="relative aspect-video overflow-hidden">
                       <img
-                        src={video.thumbnailUrl}
+                        src={video.thumbnailUrl || '/placeholder-video.jpg'}
                         alt={video.title}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                          <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        </div>
+                      <div className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-black/70 text-xs text-white">
+                        ${Number(video.priceUsdc || 0).toFixed(2)}
                       </div>
                     </div>
                     <div className="p-4">
-                      <h3 className="text-white font-semibold mb-2 line-clamp-2 group-hover:text-purple-400 transition-colors">
+                      <h3 className="text-white font-semibold mb-2 line-clamp-2">
                         {video.title}
                       </h3>
-                      <p className="text-neutral-400 text-sm mb-3">
-                        {video.creatorName}
-                      </p>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-purple-400 font-medium flex items-center gap-1">
-                          ${Number(video.priceUsdc ?? 0).toFixed(2)}
-                          <UsdcIcon size={14} />
-                        </span>
-                        <span className="text-neutral-500">
-                          Purchased {new Date(video.createdAt).toLocaleDateString()}
-                        </span>
+                      <div className="flex items-center justify-between text-sm text-neutral-400">
+                        <span>{video.views.toLocaleString()} views</span>
+                        <span>{new Date(video.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </Link>

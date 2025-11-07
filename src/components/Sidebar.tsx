@@ -275,6 +275,7 @@ export default function Sidebar() {
   const navItems = [
     { path: '/', icon: 'home', label: 'Home' },
     { path: '/payflix', icon: 'sparkles', label: 'Why PayFlix' },
+    ...(connected ? [{ path: '/subscriptions', icon: 'bell', label: 'Subscriptions' }] : []),
     { path: '/creator-dashboard', icon: 'video', label: 'Creator Dashboard' },
   ];
 
@@ -936,6 +937,9 @@ function Icon({ name, className }: { name: string; className?: string }) {
     ),
     video: (
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+    ),
+    bell: (
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
     ),
   };
 

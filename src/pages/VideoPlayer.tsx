@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
@@ -10,6 +10,8 @@ import UsdcIcon from '../components/icons/UsdcIcon';
 import CommentSection from '../components/CommentSection';
 import bs58 from 'bs58';
 import { usdcMintPublicKey } from '../config/solana';
+import { useSubscriptionStatus } from '@/hooks/useSubscriptions';
+import { useToastContext } from '@/contexts/ToastContext';
 
 interface Video {
   id: string;
@@ -29,7 +31,9 @@ interface Video {
 interface CreatorProfile {
   username: string;
   profile_picture_url: string | null;
-  wallet_address: string;
+  walletAddress?: string;
+  wallet_address?: string;
+  bio?: string | null;
 }
 
 // USDC Mint Address on Devnet
@@ -53,6 +57,12 @@ export default function VideoPlayer() {
   const [videoStreamUrl, setVideoStreamUrl] = useState<string | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [creatorProfile, setCreatorProfile] = useState<CreatorProfile | null>(null);
+  const { showToast } = useToastContext();
+  const subscriptionStatus = useSubscriptionStatus(video?.creatorWallet);
+  const creatorWallet = video?.creatorWallet;
+  const isOwnVideo = creatorWallet && walletAddress && creatorWallet === walletAddress;
+  const creatorWalletForDisplay =
+    creatorProfile?.walletAddress || creatorProfile?.wallet_address || creatorWallet || '';
 
   useEffect(() => {
     fetchVideo();
@@ -73,6 +83,46 @@ export default function VideoPlayer() {
       fetchVideoStreamUrl();
     }
   }, [hasAccess]);
+
+  const handleToggleSubscription = useCallback(async () => {
+    if (!creatorWallet || isOwnVideo) return;
+
+    if (!walletAddress) {
+      setVisible(true);
+      return;
+    }
+
+    try {
+      if (subscriptionStatus.summary.isSubscribed) {
+        await subscriptionStatus.unsubscribe();
+        showToast({
+          title: 'Unsubscribed',
+          description: 'You will no longer receive updates from this creator.',
+          variant: 'success',
+        });
+      } else {
+        await subscriptionStatus.subscribe();
+        showToast({
+          title: 'Subscribed',
+          description: 'We will keep this creator at the top of your feed.',
+          variant: 'success',
+        });
+      }
+    } catch (error: any) {
+      showToast({
+        title: 'Subscription failed',
+        description: error.message || 'Please try again.',
+        variant: 'error',
+      });
+    }
+  }, [
+    creatorWallet,
+    isOwnVideo,
+    walletAddress,
+    subscriptionStatus,
+    showToast,
+    setVisible,
+  ]);
 
   const fetchVideo = async () => {
     try {
@@ -100,11 +150,7 @@ export default function VideoPlayer() {
 
   const fetchCreatorProfile = async (walletAddress: string) => {
     try {
-      const response = await fetch('/api/users/profile', {
-        headers: {
-          'x-wallet-address': walletAddress,
-        },
-      });
+      const response = await fetch(`/api/users/profile?walletAddress=${walletAddress}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -532,26 +578,67 @@ export default function VideoPlayer() {
           <p className="text-neutral-300 mb-4 leading-relaxed">{video.description}</p>
 
           {/* Creator Info */}
-          <div className="flex items-center gap-3 pt-4 border-t border-neutral-700/50">
-            {creatorProfile?.profile_picture_url ? (
-              <img
-                src={creatorProfile.profile_picture_url}
-                alt={creatorProfile.username}
-                className="w-10 h-10 rounded-full object-cover border border-neutral-700"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
-                {creatorProfile?.username ? creatorProfile.username[0].toUpperCase() : 'A'}
+          <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-neutral-700/50">
+            <Link
+              to={creatorWallet ? `/profile/${creatorWallet}` : '#'}
+              className="flex items-center gap-3 flex-1 min-w-[220px] group"
+            >
+              {creatorProfile?.profile_picture_url ? (
+                <img
+                  src={creatorProfile.profile_picture_url}
+                  alt={creatorProfile?.username || 'Creator'}
+                  className="w-12 h-12 rounded-2xl object-cover border border-neutral-700 group-hover:border-purple-400/40 transition"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
+                  {creatorProfile?.username
+                    ? creatorProfile.username[0].toUpperCase()
+                    : creatorWalletForDisplay.slice(0, 1).toUpperCase() || 'C'}
+                </div>
+              )}
+              <div>
+                <p className="text-sm text-neutral-400">Creator</p>
+                <p className="text-white font-medium">
+                  {creatorProfile?.username ||
+                    (creatorWalletForDisplay
+                      ? `${creatorWalletForDisplay.slice(0, 4)}...${creatorWalletForDisplay.slice(-4)}`
+                      : 'Anonymous')}
+                </p>
+                {creatorProfile?.bio && (
+                  <p className="text-xs text-neutral-400 mt-1 line-clamp-2">
+                    {creatorProfile.bio}
+                  </p>
+                )}
+              </div>
+            </Link>
+
+            {!isOwnVideo && creatorWallet && (
+              <div className="flex flex-col items-end gap-2">
+                <span className="text-xs uppercase tracking-[0.4em] text-white/60">
+                  {subscriptionStatus.summary.subscriberCount.toLocaleString()} subs
+                </span>
+                <button
+                  onClick={handleToggleSubscription}
+                  disabled={subscriptionStatus.loading}
+                  className={`group relative overflow-hidden rounded-full px-6 py-2 text-sm font-semibold transition focus:outline-none ${
+                    subscriptionStatus.summary.isSubscribed
+                      ? 'bg-white/10 text-white border border-white/20'
+                      : 'bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 text-white shadow-[0_0_30px_rgba(197,107,206,0.45)]'
+                  }`}
+                >
+                  <span className="relative z-10 flex items-center gap-2">
+                    {subscriptionStatus.loading
+                      ? 'Updating...'
+                      : subscriptionStatus.summary.isSubscribed
+                      ? 'Subscribed'
+                      : 'Subscribe'}
+                  </span>
+                  {!subscriptionStatus.summary.isSubscribed && (
+                    <span className="absolute inset-0 opacity-0 group-hover:opacity-40 bg-white/20 transition" />
+                  )}
+                </button>
               </div>
             )}
-            <div>
-              <p className="text-sm text-neutral-400">Creator</p>
-              <p className="text-white font-medium">
-                {creatorProfile?.username || (video.creatorWallet
-                  ? `${video.creatorWallet.slice(0, 4)}...${video.creatorWallet.slice(-4)}`
-                  : 'Anonymous')}
-              </p>
-            </div>
           </div>
 
           {hasAccess && (
