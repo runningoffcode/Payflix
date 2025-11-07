@@ -29,6 +29,10 @@ export interface TrendingHighlightsResponse {
   refreshedAt: string;
   creators: TrendingCreatorHighlight[];
   videos: TrendingVideoHighlight[];
+  windows?: {
+    creatorsHours: number;
+    videosHours: number;
+  };
 }
 
 export async function fetchTrendingHighlights(): Promise<TrendingHighlightsResponse | null> {

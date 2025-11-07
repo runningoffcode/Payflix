@@ -130,15 +130,29 @@ router.get('/trending', async (_req: Request, res: Response) => {
       return res.json(trendingCache.payload);
     }
 
-    const [creatorHighlights, videoHighlights] = await Promise.all([
-      computeTrendingCreators(),
-      computeTrendingVideos(),
-    ]);
+    let creatorWindow = 24;
+    let videoWindow = 24;
+
+    let creatorHighlights = await computeTrendingCreators(creatorWindow);
+    if (!creatorHighlights.length) {
+      creatorWindow = 24 * 7;
+      creatorHighlights = await computeTrendingCreators(creatorWindow);
+    }
+
+    let videoHighlights = await computeTrendingVideos(videoWindow);
+    if (!videoHighlights.length) {
+      videoWindow = 24 * 7;
+      videoHighlights = await computeTrendingVideos(videoWindow);
+    }
 
     const payload = {
       refreshedAt: new Date().toISOString(),
       creators: creatorHighlights,
       videos: videoHighlights,
+      windows: {
+        creatorsHours: creatorWindow,
+        videosHours: videoWindow,
+      },
     };
 
     trendingCache = {
@@ -192,8 +206,8 @@ function getDateBoundary(hoursBack: number): string {
   return since.toISOString().split('T')[0];
 }
 
-async function computeTrendingCreators() {
-  const sinceDate = getDateBoundary(24);
+async function computeTrendingCreators(hoursBack: number) {
+  const sinceDate = getDateBoundary(hoursBack);
   const { data, error } = await supabase
     .from('creator_analytics')
     .select('creator_wallet, revenue, views, subscribers, date')
@@ -268,8 +282,8 @@ async function computeTrendingCreators() {
   });
 }
 
-async function computeTrendingVideos() {
-  const sinceDate = getDateBoundary(24);
+async function computeTrendingVideos(hoursBack: number) {
+  const sinceDate = getDateBoundary(hoursBack);
   const { data, error } = await supabase
     .from('video_analytics')
     .select('video_id, revenue, views, comments, date')
