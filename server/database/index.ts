@@ -242,6 +242,17 @@ class Database {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  async getPaymentsByCreatorWallet(creatorWallet: string, limit: number = 20): Promise<Payment[]> {
+    return Array.from(this.payments.values())
+      .filter((p) => p.creatorWallet === creatorWallet && p.status === 'verified')
+      .sort((a, b) => {
+        const aTime = (a.verifiedAt?.getTime() ?? 0) || a.createdAt.getTime();
+        const bTime = (b.verifiedAt?.getTime() ?? 0) || b.createdAt.getTime();
+        return bTime - aTime;
+      })
+      .slice(0, limit);
+  }
+
   async updatePayment(id: string, updates: Partial<Payment>): Promise<Payment | null> {
     const payment = this.payments.get(id);
     if (!payment) return null;

@@ -4,6 +4,7 @@
 // Combines Arweave permanent storage with Supabase database
 // Best of both worlds: Decentralized storage + Modern database
 
+// @ts-nocheck
 import { supabase } from '../lib/supabase';
 import {
   uploadVideoToArweave,

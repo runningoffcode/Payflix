@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useWallet } from '../hooks/useWallet';
+import { useWallet } from '../../hooks/useWallet';
 import { PublicKey, Transaction } from '@solana/web3.js';
 
 interface Comment {

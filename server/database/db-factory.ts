@@ -71,6 +71,7 @@ export interface Database {
   getPaymentByTransaction(signature: string): Promise<any>;
   getPaymentsByUser(userId: string): Promise<any[]>;
   getPaymentsByVideo(videoId: string): Promise<any[]>;
+  getPaymentsByCreatorWallet(creatorWallet: string, limit?: number): Promise<any[]>;
   updatePayment(id: string, updates: any): Promise<any>;
   getUserPaymentForVideo(userId: string, videoId: string): Promise<any>;
 

@@ -8,6 +8,10 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { sessionPaymentService } from '../services/session-payment.service';
 import { db } from '../database/db-factory';
+import {
+  recordCreatorAnalyticsDelta,
+  recordVideoAnalyticsDelta,
+} from '../services/analytics-upsert.service';
 
 const router = Router();
 
@@ -136,6 +140,16 @@ router.post('/seamless', async (req, res) => {
 
     // Increment video views
     await db.incrementVideoViews(videoId);
+
+    // Record analytics
+    const analyticsDelta = {
+      views: 1,
+      revenue: video.priceUsdc,
+    };
+    await Promise.all([
+      recordVideoAnalyticsDelta(video.id, analyticsDelta),
+      recordCreatorAnalyticsDelta(video.creatorWallet, analyticsDelta),
+    ]);
 
     console.log(`   ✅ Seamless payment complete!`);
 

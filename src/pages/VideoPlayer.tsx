@@ -8,6 +8,7 @@ import { createTransferInstruction, getAssociatedTokenAddress, TOKEN_PROGRAM_ID,
 import UnlockButton from '../components/UnlockButton';
 import UsdcIcon from '../components/icons/UsdcIcon';
 import CommentSection from '../components/CommentSection';
+import { DigitalIDBadge } from '@/components/DigitalIDBadge';
 import bs58 from 'bs58';
 import { usdcMintPublicKey } from '../config/solana';
 import { useSubscriptionStatus } from '@/hooks/useSubscriptions';
@@ -612,33 +613,38 @@ export default function VideoPlayer() {
               </div>
             </Link>
 
-            {!isOwnVideo && creatorWallet && (
-              <div className="flex flex-col items-end gap-2">
-                <span className="text-xs uppercase tracking-[0.4em] text-white/60">
-                  {subscriptionStatus.summary.subscriberCount.toLocaleString()} subs
-                </span>
-                <button
-                  onClick={handleToggleSubscription}
-                  disabled={subscriptionStatus.loading}
-                  className={`group relative overflow-hidden rounded-full px-6 py-2 text-sm font-semibold transition focus:outline-none ${
-                    subscriptionStatus.summary.isSubscribed
-                      ? 'bg-white/10 text-white border border-white/20'
-                      : 'bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 text-white shadow-[0_0_30px_rgba(197,107,206,0.45)]'
-                  }`}
-                >
-                  <span className="relative z-10 flex items-center gap-2">
-                    {subscriptionStatus.loading
-                      ? 'Updating...'
-                      : subscriptionStatus.summary.isSubscribed
-                      ? 'Subscribed'
-                      : 'Subscribe'}
+            <div className="flex flex-col items-end gap-3 min-w-[220px]">
+              {creatorWallet && (
+                <DigitalIDBadge creatorWallet={creatorWallet} videoId={id} />
+              )}
+              {!isOwnVideo && creatorWallet && (
+                <>
+                  <span className="text-xs uppercase tracking-[0.4em] text-white/60">
+                    {subscriptionStatus.summary.subscriberCount.toLocaleString()} subs
                   </span>
-                  {!subscriptionStatus.summary.isSubscribed && (
-                    <span className="absolute inset-0 opacity-0 group-hover:opacity-40 bg-white/20 transition" />
-                  )}
-                </button>
-              </div>
-            )}
+                  <button
+                    onClick={handleToggleSubscription}
+                    disabled={subscriptionStatus.loading}
+                    className={`group relative overflow-hidden rounded-full px-6 py-2 text-sm font-semibold transition focus:outline-none ${
+                      subscriptionStatus.summary.isSubscribed
+                        ? 'bg-white/10 text-white border border-white/20'
+                        : 'bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-400 text-white shadow-[0_0_30px_rgba(197,107,206,0.45)]'
+                    }`}
+                  >
+                    <span className="relative z-10 flex items-center gap-2">
+                      {subscriptionStatus.loading
+                        ? 'Updating...'
+                        : subscriptionStatus.summary.isSubscribed
+                        ? 'Subscribed'
+                        : 'Subscribe'}
+                    </span>
+                    {!subscriptionStatus.summary.isSubscribed && (
+                      <span className="absolute inset-0 opacity-0 group-hover:opacity-40 bg-white/20 transition" />
+                    )}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {hasAccess && (

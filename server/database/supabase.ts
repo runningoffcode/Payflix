@@ -508,6 +508,24 @@ class SupabaseDatabase {
     return data.map((p) => this.mapPaymentFromDb(p));
   }
 
+  async getPaymentsByCreatorWallet(creatorWallet: string, limit: number = 20): Promise<Payment[]> {
+    const { data, error } = await this.supabase
+      .from('payments')
+      .select('*')
+      .eq('creator_wallet', creatorWallet)
+      .eq('status', 'verified')
+      .order('verified_at', { ascending: false, nullsLast: false })
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error fetching creator payments:', error);
+      return [];
+    }
+
+    return (data || []).map((p) => this.mapPaymentFromDb(p));
+  }
+
   async updatePayment(id: string, updates: Partial<Payment>): Promise<Payment | null> {
     const dbUpdates: any = {};
     if (updates.status !== undefined) dbUpdates.status = updates.status;

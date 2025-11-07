@@ -7,6 +7,7 @@ import { GradientButton } from '@/components/ui/GradientButton';
 import UsdcIcon from '@/components/icons/UsdcIcon';
 import { useToastContext } from '@/contexts/ToastContext';
 import { useSubscriptionStatus } from '@/hooks/useSubscriptions';
+import { DigitalIDBadge } from '@/components/DigitalIDBadge';
 
 interface UserProfile {
   id: string;
@@ -53,7 +54,7 @@ export default function Profile() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showToast } = useToastContext();
   const viewingWallet = params.wallet || publicKey?.toBase58() || null;
-  const isOwnProfile = !params.wallet || (publicKey && params.wallet === publicKey.toBase58());
+  const isOwnProfile = !params.wallet || Boolean(publicKey && params.wallet === publicKey.toBase58());
   const subscriptionStatus = useSubscriptionStatus(
     !isOwnProfile && viewingWallet ? viewingWallet : undefined
   );
@@ -469,6 +470,12 @@ export default function Profile() {
                       </svg>
                       Creator
                     </span>
+                  )}
+
+                  {viewingWallet && (
+                    <div className="mb-4">
+                      <DigitalIDBadge creatorWallet={viewingWallet} />
+                    </div>
                   )}
 
                   <div className="flex flex-wrap gap-3 mt-6">

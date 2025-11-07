@@ -15,7 +15,6 @@ import { fetchTokenMetadata, KNOWN_TOKENS } from '../services/helius-token-metad
 import { getTokenDisplayInfo } from '../constants/tokenDisplay';
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
-import { getTokenDisplayInfo } from '../constants/tokenDisplay';
 
 export default function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -238,7 +237,7 @@ export default function Sidebar() {
       });
 
       setAllTokenBalances(tokensWithMetadata);
-      console.log('🔵 Found', tokens.length, 'tokens and', solBal / LAMPORTS_PER_SOL, 'SOL');
+      console.log('🔵 Found', tokensWithMetadata.length, 'tokens and', solBal / LAMPORTS_PER_SOL, 'SOL');
     } catch (error: any) {
       // Handle rate limit errors gracefully
       if (error?.message?.includes('429') || error?.message?.includes('Too many requests')) {

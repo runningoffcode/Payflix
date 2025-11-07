@@ -182,7 +182,7 @@ export default function SessionCreationModal({
     console.log('   signTransaction:', !!signTransaction);
     console.log('   sendTransaction:', !!sendTransaction);
 
-    if (signTransaction || sendTransaction) {
+    if (typeof signTransaction === 'function' || typeof sendTransaction === 'function') {
       console.log('✅ Using wallet adapter signer');
       return {
         signTransaction,

@@ -23,6 +23,8 @@ import userProfileRoutes from './routes/user-profile.routes';
 import storageRoutes from './routes/storage.routes';
 import commentsRoutes from './routes/comments.routes';
 import subscriptionsRoutes from './routes/subscriptions.routes';
+import digitalIdRoutes from './routes/digital-id.routes';
+import telemetryRoutes from './routes/telemetry.routes';
 // TODO: Fix these routes to work with Supabase
 // import creatorRoutes from './routes/creator.routes';
 
@@ -89,6 +91,8 @@ app.use('/api/sessions', sessionsRoutes);
 app.use('/api/storage', storageRoutes);
 app.use('/api/comments', commentsRoutes);
 app.use('/api/subscriptions', subscriptionsRoutes);
+app.use('/api/digital-id', digitalIdRoutes);
+app.use('/api/telemetry', telemetryRoutes);
 // TODO: Fix these routes to work with Supabase
 // app.use('/api/creator', creatorRoutes);
 

@@ -55,14 +55,14 @@ export default function FlixNavbar() {
     setLoading(true);
     try {
       // Queue SOL balance fetch with LOW priority
-      const solBal = await queueRPCRequest(
+      const solBal = await queueRPCRequest<number>(
         () => connection.getBalance(publicKey),
         RPC_PRIORITY.LOW
       );
       setSolBalance(solBal / LAMPORTS_PER_SOL);
 
       // Queue token accounts fetch with LOW priority
-      const tokenAccounts = await queueRPCRequest(
+      const tokenAccounts = await queueRPCRequest<Awaited<ReturnType<typeof connection.getParsedTokenAccountsByOwner>>>(
         () => connection.getParsedTokenAccountsByOwner(publicKey, {
           programId: TOKEN_PROGRAM_ID,
         }),

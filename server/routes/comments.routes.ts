@@ -3,6 +3,10 @@ import { createClient } from '@supabase/supabase-js';
 import { db } from '../database/db-factory';
 import { sessionPaymentService } from '../services/session-payment.service';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  recordCreatorAnalyticsDelta,
+  recordVideoAnalyticsDelta,
+} from '../services/analytics-upsert.service';
 
 const router = Router();
 
@@ -189,6 +193,14 @@ router.post('/', async (req: Request, res: Response) => {
     const updatedBalance = effectivePrice > 0
       ? await sessionPaymentService.getSessionBalance(userWallet)
       : null;
+
+    const analyticsDate = new Date();
+    const commentDelta = {
+      comments: 1,
+      revenue: effectivePrice > 0 ? effectivePrice : 0,
+    };
+    await recordVideoAnalyticsDelta(videoId, commentDelta, analyticsDate);
+    await recordCreatorAnalyticsDelta(video.creator_wallet, commentDelta, analyticsDate);
 
     console.log(`✅ Comment created: ${commentId}`);
 

@@ -742,16 +742,23 @@ export default function CreatorDashboard() {
                 </div>
               )}
 
-              <button
+              {(() => {
+                const walletMismatch = Boolean(
+                  user && walletAddress && user.walletAddress !== walletAddress
+                );
+                return (
+                  <button
                 type="submit"
-                disabled={uploading || isAuthLoading || !token || (user && walletAddress && user.walletAddress !== walletAddress)}
+                disabled={uploading || isAuthLoading || !token || walletMismatch}
                 className="gradient-bg px-6 py-3 rounded-lg text-white font-medium w-full hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {uploading ? `Uploading... ${uploadProgress.toFixed(0)}%` :
                  isAuthLoading || !token ? 'Authenticating...' :
-                 (user && walletAddress && user.walletAddress !== walletAddress) ? 'Wallet Mismatch - Sign in Again' :
+                 walletMismatch ? 'Wallet Mismatch - Sign in Again' :
                  'Upload Video'}
               </button>
+                );
+              })()}
 
               {!token && connected && !isAuthLoading && (
                 <p className="text-xs text-yellow-400 mt-2 text-center">

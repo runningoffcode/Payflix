@@ -414,6 +414,18 @@ class PostgresDatabase {
     return result.rows.map(this.mapPayment);
   }
 
+  async getPaymentsByCreatorWallet(creatorWallet: string, limit: number = 20): Promise<Payment[]> {
+    const result = await this.query(
+      `SELECT *
+       FROM payments
+       WHERE creator_wallet = $1 AND status = 'verified'
+       ORDER BY COALESCE(verified_at, created_at) DESC
+       LIMIT $2`,
+      [creatorWallet, limit]
+    );
+    return result.rows.map(this.mapPayment);
+  }
+
   async updatePayment(id: string, updates: Partial<Payment>): Promise<Payment | null> {
     const fields: string[] = [];
     const values: any[] = [];
