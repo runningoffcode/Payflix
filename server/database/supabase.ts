@@ -514,7 +514,7 @@ class SupabaseDatabase {
       .select('*')
       .eq('creator_wallet', creatorWallet)
       .eq('status', 'verified')
-      .order('verified_at', { ascending: false, nullsLast: false })
+      .order('verified_at', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(limit);
 
