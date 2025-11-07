@@ -282,25 +282,9 @@ export default function Home() {
 
         {/* Filter Chips */}
         <div className="sticky top-[73px] z-10 bg-neutral-900/80 backdrop-blur-sm border-b border-neutral-800/50 px-4 md:px-8 py-3">
-          <div className="flex items-center gap-3 overflow-x-auto max-w-[1800px] mx-auto scrollbar-hide">
-            <div className="flex items-center gap-3">
-              {categories.map((category) => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
-                    selectedCategory === category
-                      ? 'bg-purple-500 text-white'
-                      : 'bg-neutral-800/50 border border-neutral-700/50 text-neutral-300 hover:bg-neutral-700/50'
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
-
+          <div className="flex flex-col md:flex-row md:items-center gap-3 overflow-x-auto max-w-[1800px] mx-auto scrollbar-hide">
             {(highlightedVideo || highlightedCreator) && (
-              <div className="flex items-center gap-3 md:ml-auto">
+              <div className="flex items-center gap-3 order-1 md:order-2 md:ml-6">
                 {highlightedVideo && (
                   <TrendingChip
                     key={`video-${highlightedVideo.id}`}
@@ -352,6 +336,22 @@ export default function Home() {
                 )}
               </div>
             )}
+
+            <div className="flex items-center gap-3 order-2 md:order-1">
+              {categories.map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+                    selectedCategory === category
+                      ? 'bg-purple-500 text-white'
+                      : 'bg-neutral-800/50 border border-neutral-700/50 text-neutral-300 hover:bg-neutral-700/50'
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
