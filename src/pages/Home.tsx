@@ -7,6 +7,7 @@ import UsdcIcon from '../components/icons/UsdcIcon';
 import { useToastContext } from '@/contexts/ToastContext';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { subscribeToCreator, unsubscribeFromCreator } from '@/services/subscriptions.service';
+import { useTrendingHighlights } from '@/hooks/useTrendingHighlights';
 
 const RESULTS_PER_PAGE = 24;
 
@@ -39,6 +40,9 @@ export default function Home() {
   const { showToast } = useToastContext();
   const { subscribedWallets } = useSubscriptions(connected);
   const [subscriptionBusy, setSubscriptionBusy] = useState<string | null>(null);
+  const { data: trendingHighlights } = useTrendingHighlights();
+  const highlightedVideo = trendingHighlights?.videos?.[0];
+  const highlightedCreator = trendingHighlights?.creators?.[0];
 
   const categories = ['All', 'Entertainment', 'Gaming', 'Music', 'Education', 'Technology', 'Lifestyle'];
 
@@ -136,6 +140,11 @@ export default function Home() {
     if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M`;
     if (views >= 1000) return `${(views / 1000).toFixed(1)}K`;
     return views.toString();
+  };
+
+  const formatCurrency = (value: number) => {
+    if (!Number.isFinite(value)) return '$0.00';
+    return `$${value.toFixed(2)}`;
   };
 
   const formatTimeAgo = (dateString: string) => {
@@ -274,6 +283,51 @@ export default function Home() {
         {/* Filter Chips */}
         <div className="sticky top-[73px] z-10 bg-neutral-900/80 backdrop-blur-sm border-b border-neutral-800/50 px-4 md:px-8 py-3">
           <div className="flex items-center gap-3 overflow-x-auto max-w-[1800px] mx-auto scrollbar-hide">
+            {highlightedVideo && (
+              <TrendingChip
+                key={`video-${highlightedVideo.id}`}
+                label="Top Video"
+                icon="🔥"
+                linkTarget={
+                  highlightedVideo.id ? `/video/${highlightedVideo.id}` : '/#top-video'
+                }
+                gradientClass="from-orange-500/90 via-red-500/90 to-pink-500/90"
+                heading={highlightedVideo.title}
+                subheading={`${formatCurrency(highlightedVideo.stats.revenue24h)} • ${highlightedVideo.stats.views24h.toLocaleString()} views`}
+                stats={[
+                  `Revenue 24h: ${formatCurrency(highlightedVideo.stats.revenue24h)}`,
+                  `Views 24h: ${highlightedVideo.stats.views24h.toLocaleString()}`,
+                  `Comments 24h: ${highlightedVideo.stats.comments24h.toLocaleString()}`,
+                ]}
+              />
+            )}
+
+            {highlightedCreator && (
+              <TrendingChip
+                key={`creator-${highlightedCreator.walletAddress}`}
+                label="Top Creator"
+                icon="⭐"
+                linkTarget={
+                  highlightedCreator.walletAddress
+                    ? `/profile/${highlightedCreator.walletAddress}`
+                    : '/#top-creator'
+                }
+                gradientClass="from-cyan-400/90 via-blue-500/90 to-purple-500/90"
+                heading={
+                  highlightedCreator.username ||
+                  (highlightedCreator.walletAddress
+                    ? `${highlightedCreator.walletAddress.slice(0, 4)}...${highlightedCreator.walletAddress.slice(-4)}`
+                    : 'Creator')
+                }
+                subheading={`${formatCurrency(highlightedCreator.stats.revenue24h)} • ${highlightedCreator.stats.subscribers24h.toLocaleString()} subs`}
+                stats={[
+                  `Revenue 24h: ${formatCurrency(highlightedCreator.stats.revenue24h)}`,
+                  `Subs gained: ${highlightedCreator.stats.subscribers24h.toLocaleString()}`,
+                  `Views 24h: ${highlightedCreator.stats.views24h.toLocaleString()}`,
+                ]}
+              />
+            )}
+
             {categories.map((category) => (
               <button
                 key={category}
@@ -474,5 +528,47 @@ export default function Home() {
         </div>
       </div>
     </main>
+  );
+}
+
+interface TrendingChipProps {
+  label: string;
+  icon: string;
+  heading: string;
+  subheading: string;
+  stats: string[];
+  gradientClass: string;
+  linkTarget: string;
+}
+
+function TrendingChip({ label, icon, heading, subheading, stats, gradientClass, linkTarget }: TrendingChipProps) {
+  return (
+    <div className="relative group flex-shrink-0">
+      <Link
+        to={linkTarget}
+        className={`flex items-center gap-3 px-4 py-2 rounded-2xl text-white shadow-lg backdrop-blur-sm transition-transform hover:-translate-y-0.5 ${gradientClass}`}
+      >
+        <span className="text-xl">{icon}</span>
+        <div className="flex flex-col">
+          <span className="text-[10px] uppercase tracking-[0.35em] text-white/70">
+            {label}
+          </span>
+          <span className="text-sm font-semibold">{heading}</span>
+          <span className="text-xs text-white/80 md:hidden">{subheading}</span>
+        </div>
+      </Link>
+      <div className="hidden md:block pointer-events-none absolute left-0 top-full mt-2 w-64 rounded-2xl border border-white/10 bg-black/85 p-4 text-sm text-white/80 opacity-0 shadow-2xl transition-opacity group-hover:opacity-100 z-20">
+        <p className="text-xs uppercase tracking-[0.3em] text-white/60 mb-2">{label}</p>
+        <p className="text-sm font-semibold mb-3">{heading}</p>
+        <ul className="space-y-1 text-xs">
+          {stats.map((stat) => (
+            <li key={stat} className="flex items-center gap-2 text-white/80">
+              <span className="h-1.5 w-1.5 rounded-full bg-white/60" />
+              {stat}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
