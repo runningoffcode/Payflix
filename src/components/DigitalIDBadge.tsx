@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useConnection } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID } from '@solana/spl-token';
@@ -10,10 +11,14 @@ import { useDigitalId } from '@/hooks/useDigitalId';
 import type { DigitalIdPayment, DigitalIdResponse } from '@/services/digitalId.service';
 import { logDigitalIdEvent } from '@/services/telemetry.service';
 
+type DigitalIdBadgeVariant = 'default' | 'compact';
+
 interface DigitalIDBadgeProps {
   creatorWallet?: string;
   videoId?: string;
   className?: string;
+  variant?: DigitalIdBadgeVariant;
+  lazy?: boolean;
 }
 
 interface TokenDisplayItem {
@@ -24,13 +29,46 @@ interface TokenDisplayItem {
   logo?: string;
 }
 
-export function DigitalIDBadge({ creatorWallet, videoId, className }: DigitalIDBadgeProps) {
-  const { data, loading, error } = useDigitalId(creatorWallet, videoId);
+export function DigitalIDBadge({
+  creatorWallet,
+  videoId,
+  className,
+  variant = 'default',
+  lazy = false,
+}: DigitalIDBadgeProps) {
+  const [activated, setActivated] = useState(!lazy);
+  const { data, loading, error } = useDigitalId(creatorWallet, videoId, activated);
   const [hovered, setHovered] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [tokenItems, setTokenItems] = useState<TokenDisplayItem[] | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
   const { connection } = useConnection();
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!lazy || activated) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setActivated(true);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setActivated(true);
+      }
+    }, { threshold: 0.4 });
+
+    const node = containerRef.current;
+    if (node) {
+      observer.observe(node);
+    }
+
+    return () => {
+      if (node) {
+        observer.unobserve(node);
+      }
+      observer.disconnect();
+    };
+  }, [lazy, activated]);
 
   const formattedWallet = useMemo(() => {
     if (!creatorWallet) return '';
@@ -40,7 +78,7 @@ export function DigitalIDBadge({ creatorWallet, videoId, className }: DigitalIDB
   const latestPayment = data?.recentPayments?.[0] ?? null;
 
   const safeOpenModal = () => {
-    if (!creatorWallet) return;
+    if (!creatorWallet || variant === 'compact') return;
     logDigitalIdEvent('modal_open');
     setModalOpen(true);
   };
@@ -121,10 +159,10 @@ export function DigitalIDBadge({ creatorWallet, videoId, className }: DigitalIDB
   }, [connection, creatorWallet, modalOpen]);
 
   useEffect(() => {
-    if (hovered) {
+    if (hovered && activated) {
       logDigitalIdEvent('hover');
     }
-  }, [hovered]);
+  }, [hovered, activated]);
 
   if (!creatorWallet) {
     return null;
@@ -171,18 +209,37 @@ export function DigitalIDBadge({ creatorWallet, videoId, className }: DigitalIDB
     );
   };
 
+  const handleMouseEnter = () => {
+    setActivated(true);
+    setHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    setHovered(false);
+  };
+
+  const handleFocus = () => {
+    setActivated(true);
+    setHovered(true);
+  };
+
+  const handleBlur = () => setHovered(false);
+
   return (
-    <div className={cn('relative inline-flex', className)}>
+    <div
+      ref={containerRef}
+      className={cn('relative inline-flex', className)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <button
         type="button"
         className={cn(
           'rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white/80 transition hover:border-purple-400/60 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500',
           loading && 'opacity-70'
         )}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onFocus={() => setHovered(true)}
-        onBlur={() => setHovered(false)}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         onClick={safeOpenModal}
       >
         <span className="flex items-center gap-2">
@@ -198,7 +255,7 @@ export function DigitalIDBadge({ creatorWallet, videoId, className }: DigitalIDB
         </div>
       )}
 
-      {modalOpen && data && (
+      {modalOpen && data && variant === 'default' && (
         <DigitalIdModal
           data={data}
           tokens={{ items: tokenItems, loading: tokenLoading }}
@@ -218,10 +275,10 @@ interface DigitalIdModalProps {
 }
 
 function DigitalIdModal({ data, tokens, onClose, recentPayment }: DigitalIdModalProps) {
-  if (!data) return null;
+  if (!data || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-3xl overflow-hidden rounded-3xl border border-white/15 bg-neutral-950/95 p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-6 border-b border-white/10 pb-6">
@@ -381,7 +438,8 @@ function DigitalIdModal({ data, tokens, onClose, recentPayment }: DigitalIdModal
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

@@ -3,7 +3,11 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { DIGITAL_ID_UPDATED_EVENT } from '@/utils/digitalIdEvents';
 import { fetchDigitalId, type DigitalIdResponse } from '@/services/digitalId.service';
 
-export function useDigitalId(creatorWallet?: string, videoId?: string) {
+export function useDigitalId(
+  creatorWallet?: string,
+  videoId?: string,
+  enabled: boolean = true
+) {
   const { publicKey } = useWallet();
   const viewerWallet = publicKey?.toBase58() || null;
 
@@ -12,8 +16,9 @@ export function useDigitalId(creatorWallet?: string, videoId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!creatorWallet) {
+    if (!creatorWallet || !enabled) {
       setData(null);
+      setLoading(false);
       return;
     }
 
@@ -27,13 +32,20 @@ export function useDigitalId(creatorWallet?: string, videoId?: string) {
     } finally {
       setLoading(false);
     }
-  }, [creatorWallet, viewerWallet, videoId]);
+  }, [creatorWallet, viewerWallet, videoId, enabled]);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     refresh();
-  }, [refresh]);
+  }, [refresh, enabled]);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
     const handler = () => refresh();
     window.addEventListener('sessionUpdated', handler as EventListener);
     window.addEventListener(DIGITAL_ID_UPDATED_EVENT, handler as EventListener);
@@ -41,7 +53,7 @@ export function useDigitalId(creatorWallet?: string, videoId?: string) {
       window.removeEventListener('sessionUpdated', handler as EventListener);
       window.removeEventListener(DIGITAL_ID_UPDATED_EVENT, handler as EventListener);
     };
-  }, [refresh]);
+  }, [refresh, enabled]);
 
   return {
     data,

@@ -8,6 +8,7 @@ import { useToastContext } from '@/contexts/ToastContext';
 import { useSubscriptions } from '@/hooks/useSubscriptions';
 import { subscribeToCreator, unsubscribeFromCreator } from '@/services/subscriptions.service';
 import { useTrendingHighlights } from '@/hooks/useTrendingHighlights';
+import { DigitalIDBadge } from '@/components/DigitalIDBadge';
 
 const RESULTS_PER_PAGE = 24;
 
@@ -547,6 +548,14 @@ export default function Home() {
                         <p className="text-xs text-neutral-400">
                           {formatViews(video.views)} views • {formatTimeAgo(video.createdAt)}
                         </p>
+                        {video.creatorWallet && (
+                          <DigitalIDBadge
+                            creatorWallet={video.creatorWallet}
+                            variant="compact"
+                            lazy
+                            className="mt-2 text-[10px] [&>button]:px-3 [&>button]:py-1 [&>button]:text-[10px]"
+                          />
+                        )}
                       </div>
                     </div>
                   </Link>
