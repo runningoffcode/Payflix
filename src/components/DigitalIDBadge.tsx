@@ -250,7 +250,22 @@ export function DigitalIDBadge({
       </button>
 
       {hovered && (
-        <div className="absolute z-50 mt-2 w-64 rounded-2xl border border-white/10 bg-neutral-900/95 p-4 text-left shadow-2xl backdrop-blur">
+        <div
+          role={variant === 'compact' ? undefined : 'button'}
+          tabIndex={variant === 'compact' ? undefined : 0}
+          onClick={variant === 'compact' ? undefined : safeOpenModal}
+          onKeyDown={
+            variant === 'compact'
+              ? undefined
+              : (event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    safeOpenModal();
+                  }
+                }
+          }
+          className="absolute z-50 mt-2 w-64 rounded-2xl border border-white/10 bg-neutral-900/95 p-4 text-left shadow-2xl backdrop-blur focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-neutral-900 cursor-pointer"
+        >
           {tooltipContent()}
         </div>
       )}
