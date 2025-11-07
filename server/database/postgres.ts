@@ -170,7 +170,7 @@ class PostgresDatabase {
       'SELECT 1 FROM subscriptions WHERE subscriber_wallet = $1 AND creator_wallet = $2 LIMIT 1',
       [subscriberWallet, creatorWallet]
     );
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // ==================== Videos ====================
