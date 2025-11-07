@@ -132,17 +132,29 @@ router.get('/trending', async (_req: Request, res: Response) => {
 
     let creatorWindow = 24;
     let videoWindow = 24;
+    let creatorSource: 'analytics' | 'fallback' = 'analytics';
+    let videoSource: 'analytics' | 'fallback' = 'analytics';
 
     let creatorHighlights = await computeTrendingCreators(creatorWindow);
     if (!creatorHighlights.length) {
       creatorWindow = 24 * 7;
       creatorHighlights = await computeTrendingCreators(creatorWindow);
     }
+    if (!creatorHighlights.length) {
+      creatorHighlights = await fallbackTrendingCreatorsFromVideos();
+      creatorSource = 'fallback';
+      creatorWindow = 0;
+    }
 
     let videoHighlights = await computeTrendingVideos(videoWindow);
     if (!videoHighlights.length) {
       videoWindow = 24 * 7;
       videoHighlights = await computeTrendingVideos(videoWindow);
+    }
+    if (!videoHighlights.length) {
+      videoHighlights = await fallbackTrendingVideosFromVideos();
+      videoSource = 'fallback';
+      videoWindow = 0;
     }
 
     const payload = {
@@ -152,6 +164,10 @@ router.get('/trending', async (_req: Request, res: Response) => {
       windows: {
         creatorsHours: creatorWindow,
         videosHours: videoWindow,
+      },
+      sources: {
+        creators: creatorSource,
+        videos: videoSource,
       },
     };
 
@@ -356,6 +372,112 @@ async function computeTrendingVideos(hoursBack: number) {
       score: (entry as any).score,
     };
   });
+}
+
+async function fallbackTrendingCreatorsFromVideos(limit: number = 2) {
+  const { data, error } = await supabase
+    .from('videos')
+    .select('creator_wallet, views, earnings')
+    .not('creator_wallet', 'is', null)
+    .order('views', { ascending: false })
+    .limit(100);
+
+  if (error || !data) {
+    console.error('Supabase error fetching fallback creator data:', error);
+    return [];
+  }
+
+  const aggregates = new Map<
+    string,
+    {
+      creatorWallet: string;
+      totalViews: number;
+      totalEarnings: number;
+      videoCount: number;
+    }
+  >();
+
+  data.forEach((row) => {
+    if (!row.creator_wallet) {
+      return;
+    }
+    if (!aggregates.has(row.creator_wallet)) {
+      aggregates.set(row.creator_wallet, {
+        creatorWallet: row.creator_wallet,
+        totalViews: 0,
+        totalEarnings: 0,
+        videoCount: 0,
+      });
+    }
+    const aggregate = aggregates.get(row.creator_wallet)!;
+    aggregate.totalViews += toNumber(row.views);
+    aggregate.totalEarnings += toNumber(row.earnings);
+    aggregate.videoCount += 1;
+  });
+
+  const list = Array.from(aggregates.values());
+  if (!list.length) return [];
+
+  applyWeightedScore(list as any[], {
+    totalEarnings: 0.6,
+    totalViews: 0.3,
+    videoCount: 0.1,
+  });
+
+  const top = list.sort((a, b) => (b as any).score - (a as any).score).slice(0, limit);
+
+  const wallets = top.map((entry) => entry.creatorWallet);
+  let creatorProfiles: any[] | null = [];
+  if (wallets.length) {
+    const { data: profiles } = await supabase
+      .from('users')
+      .select('wallet_address, username, profile_image_url, bio')
+      .in('wallet_address', wallets);
+    creatorProfiles = profiles;
+  }
+
+  return top.map((entry) => {
+    const profile = creatorProfiles?.find((p) => p.wallet_address === entry.creatorWallet);
+    return {
+      walletAddress: entry.creatorWallet,
+      username: profile?.username || null,
+      profilePictureUrl: profile?.profile_image_url || null,
+      bio: profile?.bio || null,
+      stats: {
+        revenue24h: Number(entry.totalEarnings.toFixed(2)),
+        views24h: entry.totalViews,
+        subscribers24h: 0,
+      },
+      score: (entry as any).score,
+    };
+  });
+}
+
+async function fallbackTrendingVideosFromVideos(limit: number = 2) {
+  const { data, error } = await supabase
+    .from('videos')
+    .select('id, title, thumbnail_url, price_usdc, creator_wallet, views, earnings')
+    .order('views', { ascending: false })
+    .limit(20);
+
+  if (error || !data) {
+    console.error('Supabase error fetching fallback video data:', error);
+    return [];
+  }
+
+  return data.slice(0, limit).map((video) => ({
+    id: video.id,
+    title: video.title || 'Untitled Video',
+    thumbnailUrl: video.thumbnail_url || null,
+    priceUsdc: video.price_usdc || 0,
+    creatorWallet: video.creator_wallet || null,
+    stats: {
+      revenue24h: Number(toNumber(video.earnings).toFixed(2)),
+      views24h: toNumber(video.views),
+      comments24h: 0,
+    },
+    score: toNumber(video.views),
+  }));
 }
 
 export default router;
