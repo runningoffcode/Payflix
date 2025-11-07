@@ -365,9 +365,9 @@ export default function Home() {
 
           {/* Desktop layout: categories left, trending right */}
           <div className="hidden md:flex items-center gap-3 max-w-[1800px] mx-auto">
-            <div className="flex items-center gap-3">{categoryButtons}</div>
+            <div className="flex items-center gap-3 flex-1">{categoryButtons}</div>
             {hasTrending && (
-              <div className="flex items-center gap-3 ml-auto">{renderTrendingChips()}</div>
+              <div className="flex items-center gap-3 ml-6">{renderTrendingChips()}</div>
             )}
           </div>
         </div>
