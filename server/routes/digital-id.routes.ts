@@ -203,6 +203,47 @@ async function buildPublicPayload(walletAddress: string): Promise<DigitalIdPubli
 
   const analytics24h = await computeCreatorAnalyticsSnapshot(walletAddress, payments);
 
+  let finalRecentPayments = recentPayments;
+  let finalLatestPayment = latestPayment;
+  let hasVerifiedPayments = payments.length > 0;
+
+  if (
+    process.env.DIGITAL_ID_DEV_MOCK === 'true' &&
+    (!recentPayments.length || !hasVerifiedPayments)
+  ) {
+    const mockPayment = {
+      id: `mock-${Date.now()}`,
+      amount: 4.2,
+      creatorAmount: 4.08,
+      platformAmount: 0.12,
+      signature: 'mock_signature_verified',
+      verifiedAt: new Date().toISOString(),
+      video: videos.length
+        ? {
+            id: videos[0].id,
+            title: videos[0].title,
+            thumbnailUrl: videos[0].thumbnailUrl || null,
+          }
+        : null,
+    };
+    finalRecentPayments = [mockPayment, ...recentPayments].slice(0, 5);
+    finalLatestPayment = {
+      id: mockPayment.id,
+      videoId: mockPayment.video?.id || 'mock-video',
+      creatorWallet: walletAddress,
+      userId: 'mock-user',
+      userWallet: 'mock-wallet',
+      amount: mockPayment.amount,
+      creatorAmount: mockPayment.creatorAmount,
+      platformAmount: mockPayment.platformAmount,
+      transactionSignature: mockPayment.signature,
+      status: 'verified',
+      verifiedAt: new Date(mockPayment.verifiedAt),
+      createdAt: new Date(mockPayment.verifiedAt),
+    } as Payment;
+    hasVerifiedPayments = true;
+  }
+
   return {
     walletAddress,
     creator: {
@@ -215,11 +256,11 @@ async function buildPublicPayload(walletAddress: string): Promise<DigitalIdPubli
     },
     stats,
     analytics24h,
-    recentPayments,
+    recentPayments: finalRecentPayments,
     highlights: {
-      hasVerifiedPayments: payments.length > 0,
-      latestPaymentAt: latestPayment
-        ? (latestPayment.verifiedAt ?? latestPayment.createdAt).toISOString()
+      hasVerifiedPayments,
+      latestPaymentAt: finalLatestPayment
+        ? (finalLatestPayment.verifiedAt ?? finalLatestPayment.createdAt).toISOString()
         : null,
     },
     refreshedAt: new Date().toISOString(),
