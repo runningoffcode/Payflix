@@ -45,6 +45,75 @@ export default function Home() {
   const highlightedCreator = trendingHighlights?.creators?.[0];
 
   const categories = ['All', 'Entertainment', 'Gaming', 'Music', 'Education', 'Technology', 'Lifestyle'];
+  const hasTrending = Boolean(highlightedVideo || highlightedCreator);
+
+  const renderTrendingChips = () => (
+    <>
+      {highlightedVideo && (
+        <TrendingChip
+          key={`video-${highlightedVideo.id}`}
+          label="Top Video"
+          linkTarget={
+            highlightedVideo.id ? `/video/${highlightedVideo.id}` : '/#top-video'
+          }
+          heading={highlightedVideo.title}
+          subheading={`${formatCurrency(highlightedVideo.stats.revenue24h)} • ${highlightedVideo.stats.views24h.toLocaleString()} views`}
+          stats={[
+            `Revenue 24h: ${formatCurrency(highlightedVideo.stats.revenue24h)}`,
+            `Views 24h: ${highlightedVideo.stats.views24h.toLocaleString()}`,
+            `Comments 24h: ${highlightedVideo.stats.comments24h.toLocaleString()}`,
+          ]}
+          thumbnailUrl={highlightedVideo.thumbnailUrl}
+          type="video"
+        />
+      )}
+
+      {highlightedCreator && (
+        <TrendingChip
+          key={`creator-${highlightedCreator.walletAddress}`}
+          label="Top Creator"
+          linkTarget={
+            highlightedCreator.walletAddress
+              ? `/profile/${highlightedCreator.walletAddress}`
+              : '/#top-creator'
+          }
+          heading={
+            highlightedCreator.username ||
+            (highlightedCreator.walletAddress
+              ? `${highlightedCreator.walletAddress.slice(0, 4)}...${highlightedCreator.walletAddress.slice(-4)}`
+              : 'Creator')
+          }
+          subheading={`${formatCurrency(highlightedCreator.stats.revenue24h)} • ${highlightedCreator.stats.subscribers24h.toLocaleString()} subs`}
+          stats={[
+            `Revenue 24h: ${formatCurrency(highlightedCreator.stats.revenue24h)}`,
+            `Subs gained: ${highlightedCreator.stats.subscribers24h.toLocaleString()}`,
+            `Views 24h: ${highlightedCreator.stats.views24h.toLocaleString()}`,
+          ]}
+          thumbnailUrl={highlightedCreator.profilePictureUrl || undefined}
+          type="creator"
+          fallbackInitial={
+            highlightedCreator.username?.[0]?.toUpperCase() ||
+            highlightedCreator.walletAddress?.[0]?.toUpperCase() ||
+            'C'
+          }
+        />
+      )}
+    </>
+  );
+
+  const categoryButtons = categories.map((category) => (
+    <button
+      key={category}
+      onClick={() => setSelectedCategory(category)}
+      className={`px-4 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+        selectedCategory === category
+          ? 'bg-purple-500 text-white'
+          : 'bg-neutral-800/50 border border-neutral-700/50 text-neutral-300 hover:bg-neutral-700/50'
+      }`}
+    >
+      {category}
+    </button>
+  ));
 
   useEffect(() => {
     const handler = window.setTimeout(() => {
@@ -281,77 +350,25 @@ export default function Home() {
         </div>
 
         {/* Filter Chips */}
-        <div className="sticky top-[73px] z-10 bg-neutral-900/80 backdrop-blur-sm border-b border-neutral-800/50 px-4 md:px-8 py-3">
-          <div className="flex flex-col md:flex-row md:items-center gap-3 overflow-x-auto max-w-[1800px] mx-auto scrollbar-hide">
-            {(highlightedVideo || highlightedCreator) && (
-              <div className="flex items-center gap-3 order-1 md:order-2 md:ml-6">
-                {highlightedVideo && (
-                  <TrendingChip
-                    key={`video-${highlightedVideo.id}`}
-                    label="Top Video"
-                    linkTarget={
-                      highlightedVideo.id ? `/video/${highlightedVideo.id}` : '/#top-video'
-                    }
-                    heading={highlightedVideo.title}
-                    subheading={`${formatCurrency(highlightedVideo.stats.revenue24h)} • ${highlightedVideo.stats.views24h.toLocaleString()} views`}
-                    stats={[
-                      `Revenue 24h: ${formatCurrency(highlightedVideo.stats.revenue24h)}`,
-                      `Views 24h: ${highlightedVideo.stats.views24h.toLocaleString()}`,
-                      `Comments 24h: ${highlightedVideo.stats.comments24h.toLocaleString()}`,
-                    ]}
-                    thumbnailUrl={highlightedVideo.thumbnailUrl}
-                    type="video"
-                  />
-                )}
-
-                {highlightedCreator && (
-                  <TrendingChip
-                    key={`creator-${highlightedCreator.walletAddress}`}
-                    label="Top Creator"
-                    linkTarget={
-                      highlightedCreator.walletAddress
-                        ? `/profile/${highlightedCreator.walletAddress}`
-                        : '/#top-creator'
-                    }
-                    heading={
-                      highlightedCreator.username ||
-                      (highlightedCreator.walletAddress
-                        ? `${highlightedCreator.walletAddress.slice(0, 4)}...${highlightedCreator.walletAddress.slice(-4)}`
-                        : 'Creator')
-                    }
-                    subheading={`${formatCurrency(highlightedCreator.stats.revenue24h)} • ${highlightedCreator.stats.subscribers24h.toLocaleString()} subs`}
-                    stats={[
-                      `Revenue 24h: ${formatCurrency(highlightedCreator.stats.revenue24h)}`,
-                      `Subs gained: ${highlightedCreator.stats.subscribers24h.toLocaleString()}`,
-                      `Views 24h: ${highlightedCreator.stats.views24h.toLocaleString()}`,
-                    ]}
-                    thumbnailUrl={highlightedCreator.profilePictureUrl || undefined}
-                    type="creator"
-                    fallbackInitial={
-                      highlightedCreator.username?.[0]?.toUpperCase() ||
-                      highlightedCreator.walletAddress?.[0]?.toUpperCase() ||
-                      'C'
-                    }
-                  />
-                )}
+        <div className="sticky top-[73px] z-10 bg-neutral-900/80 backdrop-blur-sm border-b border-neutral-800/50 px-4 md:px-8 py-3 md:py-4">
+          {/* Mobile layout: trending (if any) first, categories second */}
+          <div className="space-y-3 md:hidden">
+            {hasTrending && (
+              <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
+                {renderTrendingChips()}
               </div>
             )}
-
-            <div className="flex items-center gap-3 order-2 md:order-1">
-              {categories.map((category) => (
-                <button
-                  key={category}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
-                    selectedCategory === category
-                      ? 'bg-purple-500 text-white'
-                      : 'bg-neutral-800/50 border border-neutral-700/50 text-neutral-300 hover:bg-neutral-700/50'
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
+            <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
+              {categoryButtons}
             </div>
+          </div>
+
+          {/* Desktop layout: categories left, trending right */}
+          <div className="hidden md:flex items-center gap-3 max-w-[1800px] mx-auto">
+            <div className="flex items-center gap-3">{categoryButtons}</div>
+            {hasTrending && (
+              <div className="flex items-center gap-3 ml-auto">{renderTrendingChips()}</div>
+            )}
           </div>
         </div>
 
