@@ -12,6 +12,7 @@ import {
   recordCreatorAnalyticsDelta,
   recordVideoAnalyticsDelta,
 } from '../services/analytics-upsert.service';
+import { invalidateDigitalIdCache } from './digital-id.routes';
 
 const router = Router();
 
@@ -161,6 +162,8 @@ router.post('/seamless', async (req, res) => {
     // Keep the video earnings column in sync so creator dashboards reflect new revenue
     const nextEarnings = (video.earnings || 0) + creatorAmount;
     await db.updateVideo(video.id, { earnings: nextEarnings });
+
+    invalidateDigitalIdCache(video.creatorWallet);
 
     console.log(`   ✅ Seamless payment complete!`);
 
@@ -346,6 +349,8 @@ router.post('/direct', async (req, res) => {
     // Reflect the new revenue in the video row for creator stats/profile cards
     const nextEarnings = (video.earnings || 0) + creatorAmount;
     await db.updateVideo(video.id, { earnings: nextEarnings });
+
+    invalidateDigitalIdCache(video.creatorWallet!);
 
     return res.json({
       success: true,

@@ -12,7 +12,7 @@ type CachedEntry = {
   data: DigitalIdPublicPayload;
 };
 
-const PUBLIC_CACHE_TTL_MS = 30 * 1000;
+const PUBLIC_CACHE_TTL_MS = 5 * 1000;
 const publicCache = new Map<string, CachedEntry>();
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
@@ -130,6 +130,11 @@ function cachePublicPayload(walletKey: string, data: DigitalIdPublicPayload) {
     data,
     expiresAt: Date.now() + PUBLIC_CACHE_TTL_MS,
   });
+}
+
+export function invalidateDigitalIdCache(walletAddress: string) {
+  if (!walletAddress) return;
+  publicCache.delete(walletAddress.toLowerCase());
 }
 
 async function buildPublicPayload(walletAddress: string): Promise<DigitalIdPublicPayload> {

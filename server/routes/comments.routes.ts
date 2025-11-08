@@ -7,6 +7,7 @@ import {
   recordCreatorAnalyticsDelta,
   recordVideoAnalyticsDelta,
 } from '../services/analytics-upsert.service';
+import { invalidateDigitalIdCache } from './digital-id.routes';
 
 const router = Router();
 
@@ -208,6 +209,10 @@ router.post('/', async (req: Request, res: Response) => {
     };
     await recordVideoAnalyticsDelta(videoId, commentDelta, analyticsDate);
     await recordCreatorAnalyticsDelta(video.creator_wallet, commentDelta, analyticsDate);
+
+    if (video.creator_wallet) {
+      invalidateDigitalIdCache(video.creator_wallet);
+    }
 
     console.log(`✅ Comment created: ${commentId}`);
 
