@@ -128,12 +128,10 @@ router.post('/seamless', async (req, res) => {
       status: 'verified',
     });
 
-    if (process.env.NODE_ENV !== 'production') {
-      await db.updatePayment(paymentRecord.id, {
-        status: 'verified',
-        verifiedAt: new Date(),
-      });
-    }
+    await db.updatePayment(paymentRecord.id, {
+      status: 'verified',
+      verifiedAt: new Date(),
+    });
 
     // Grant video access (lifetime access)
     await db.grantVideoAccess({
@@ -325,12 +323,10 @@ router.post('/direct', async (req, res) => {
       status: 'verified',
     });
 
-    if (process.env.NODE_ENV !== 'production') {
-      await db.updatePayment(paymentRecord.id, {
-        status: 'verified',
-        verifiedAt: new Date(),
-      });
-    }
+    await db.updatePayment(paymentRecord.id, {
+      status: 'verified',
+      verifiedAt: new Date(),
+    });
 
     // Grant video access (lifetime access)
     await db.grantVideoAccess({
