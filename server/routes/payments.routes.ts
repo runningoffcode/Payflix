@@ -114,7 +114,7 @@ router.post('/seamless', async (req, res) => {
     const creatorAmount = video.priceUsdc - platformAmount;
 
     const paymentId = uuidv4();
-    await db.createPayment({
+    const paymentRecord = await db.createPayment({
       id: paymentId,
       videoId: video.id,
       userId: user.id,
@@ -126,6 +126,13 @@ router.post('/seamless', async (req, res) => {
       transactionSignature: result.signature!,
       status: 'verified',
     });
+
+    if (process.env.NODE_ENV !== 'production') {
+      await db.updatePayment(paymentRecord.id, {
+        status: 'verified',
+        verifiedAt: new Date(),
+      });
+    }
 
     // Grant video access (lifetime access)
     await db.grantVideoAccess({
@@ -298,7 +305,7 @@ router.post('/direct', async (req, res) => {
     const creatorAmount = video.priceUsdc - platformAmount;
 
     const paymentId = uuidv4();
-    await db.createPayment({
+    const paymentRecord = await db.createPayment({
       id: paymentId,
       videoId: video.id,
       userId: user.id,
@@ -310,6 +317,13 @@ router.post('/direct', async (req, res) => {
       transactionSignature: signature,
       status: 'verified',
     });
+
+    if (process.env.NODE_ENV !== 'production') {
+      await db.updatePayment(paymentRecord.id, {
+        status: 'verified',
+        verifiedAt: new Date(),
+      });
+    }
 
     // Grant video access (lifetime access)
     await db.grantVideoAccess({

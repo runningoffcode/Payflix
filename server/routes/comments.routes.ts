@@ -153,7 +153,7 @@ router.post('/', async (req: Request, res: Response) => {
       const creatorAmount = effectivePrice - platformAmount;
 
       paymentId = uuidv4();
-      await db.createPayment({
+      const paymentRecord = await db.createPayment({
         id: paymentId,
         videoId,
         userId: user.id,
@@ -165,6 +165,13 @@ router.post('/', async (req: Request, res: Response) => {
         transactionSignature,
         status: 'verified',
       });
+
+      if (process.env.NODE_ENV !== 'production') {
+        await db.updatePayment(paymentRecord.id, {
+          status: 'verified',
+          verifiedAt: new Date(),
+        });
+      }
     } else if (isCreatorCommenting && commentPrice > 0) {
       console.log('🔁 Creator commenting on own video - skipping payment deduction.');
     }
