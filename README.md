@@ -373,3 +373,4 @@ For questions or support:
 ---
 
 **Built with ❤️ using x402 protocol on Solana**
+- `DIGITAL_ID_DEV_MOCK=true` – optional; set only on staging/dev to show synthetic “Verified” payouts in the Digital ID badge when the environment has no real verified payments. Keep unset or false on production (payflix.fun).

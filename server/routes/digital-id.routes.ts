@@ -213,36 +213,49 @@ async function buildPublicPayload(walletAddress: string): Promise<DigitalIdPubli
     process.env.DIGITAL_ID_DEV_MOCK === 'true' &&
     (!recentPayments.length || !hasVerifiedPayments)
   ) {
-    const mockPayment = {
-      id: `mock-${Date.now()}`,
-      amount: 4.2,
-      creatorAmount: 4.08,
-      platformAmount: 0.12,
-      signature: 'mock_signature_verified',
-      verifiedAt: new Date().toISOString(),
-      video: videos.length
-        ? {
-            id: videos[0].id,
-            title: videos[0].title,
-            thumbnailUrl: videos[0].thumbnailUrl || null,
-          }
-        : null,
-    };
-    finalRecentPayments = [mockPayment, ...recentPayments].slice(0, 5);
-    finalLatestPayment = {
-      id: mockPayment.id,
-      videoId: mockPayment.video?.id || 'mock-video',
-      creatorWallet: walletAddress,
-      userId: 'mock-user',
-      userWallet: 'mock-wallet',
-      amount: mockPayment.amount,
-      creatorAmount: mockPayment.creatorAmount,
-      platformAmount: mockPayment.platformAmount,
-      transactionSignature: mockPayment.signature,
-      status: 'verified',
-      verifiedAt: new Date(mockPayment.verifiedAt),
-      createdAt: new Date(mockPayment.verifiedAt),
-    } as Payment;
+    const sourcePayments =
+      recentPayments.length > 0
+        ? recentPayments
+        : videos.slice(0, 3).map((video, index) => ({
+            id: `mock-${video.id}-${index}`,
+            amount: Number((video.priceUsdc ?? 2.5).toFixed(2)),
+            creatorAmount: Number(((video.priceUsdc ?? 2.5) * 0.97).toFixed(2)),
+            platformAmount: Number(((video.priceUsdc ?? 2.5) * 0.03).toFixed(2)),
+            signature: `mock_signature_${video.id}-${index}`,
+            verifiedAt: null,
+            video: video
+              ? {
+                  id: video.id,
+                  title: video.title,
+                  thumbnailUrl: video.thumbnailUrl || null,
+                }
+              : null,
+          }));
+
+    finalRecentPayments = sourcePayments.slice(0, 5).map((payment, index) => ({
+      ...payment,
+      signature: payment.signature || `mock_signature_${index}`,
+      verifiedAt:
+        payment.verifiedAt ||
+        new Date(Date.now() - index * 10 * 60 * 1000).toISOString(),
+    }));
+
+    if (!finalLatestPayment && finalRecentPayments.length) {
+      finalLatestPayment = {
+        id: finalRecentPayments[0].id,
+        videoId: finalRecentPayments[0].video?.id || 'mock-video',
+        creatorWallet: walletAddress,
+        userId: 'mock-user',
+        userWallet: 'mock-wallet',
+        amount: finalRecentPayments[0].amount,
+        creatorAmount: finalRecentPayments[0].creatorAmount,
+        platformAmount: finalRecentPayments[0].platformAmount,
+        transactionSignature: finalRecentPayments[0].signature,
+        status: 'verified',
+        verifiedAt: new Date(finalRecentPayments[0].verifiedAt!),
+        createdAt: new Date(finalRecentPayments[0].verifiedAt!),
+      } as Payment;
+    }
   }
 
   return {
