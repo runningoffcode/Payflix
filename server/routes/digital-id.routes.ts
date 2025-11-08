@@ -205,7 +205,9 @@ async function buildPublicPayload(walletAddress: string): Promise<DigitalIdPubli
 
   let finalRecentPayments = recentPayments;
   let finalLatestPayment = latestPayment;
-  let hasVerifiedPayments = payments.length > 0;
+  const hasVerifiedPayments = payments.some(
+    (payment) => payment.status === 'verified' && payment.verifiedAt
+  );
 
   if (
     process.env.DIGITAL_ID_DEV_MOCK === 'true' &&
@@ -241,7 +243,6 @@ async function buildPublicPayload(walletAddress: string): Promise<DigitalIdPubli
       verifiedAt: new Date(mockPayment.verifiedAt),
       createdAt: new Date(mockPayment.verifiedAt),
     } as Payment;
-    hasVerifiedPayments = true;
   }
 
   return {
@@ -258,7 +259,7 @@ async function buildPublicPayload(walletAddress: string): Promise<DigitalIdPubli
     analytics24h,
     recentPayments: finalRecentPayments,
     highlights: {
-      hasVerifiedPayments,
+      hasVerifiedPayments: hasVerifiedPayments || process.env.DIGITAL_ID_DEV_MOCK === 'true',
       latestPaymentAt: finalLatestPayment
         ? (finalLatestPayment.verifiedAt ?? finalLatestPayment.createdAt).toISOString()
         : null,

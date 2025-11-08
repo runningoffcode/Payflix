@@ -189,7 +189,7 @@ export function DigitalIDBadge({
           <p className="text-xs uppercase tracking-wide text-neutral-500">Latest verification</p>
           <p className="text-white">
             {data.highlights.latestPaymentAt
-              ? formatRelativeTime(data.highlights.latestPaymentAt)
+              ? formatVerificationTime(data.highlights.latestPaymentAt)
               : 'Awaiting first payment'}
           </p>
         </div>
@@ -489,4 +489,16 @@ function formatRelativeTime(dateString: string) {
   }
   const diffDays = Math.round(diffHours / 24);
   return rtf.format(diffDays, 'day');
+}
+
+function formatVerificationTime(dateString: string) {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown';
+  }
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 60 * 1000) {
+    return 'Verified moments ago';
+  }
+  return `Verified at ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
 }
