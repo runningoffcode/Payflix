@@ -166,7 +166,7 @@ const PayflixStackedLogo = ({ className = '' }: { className?: string }) => (
   </svg>
 );
 
-const PLACEHOLDER_CA = '9X7Lk1d4NqCpjQV98zXWitDdJsa1LkM7dHPYVL7eXy3a';
+const PLACEHOLDER_CA = 'Coming Soon';
 
 function SocialButton({ name, href, icon, className = '' }: (typeof SOCIAL_LINKS)[number] & { className?: string }) {
   return (
