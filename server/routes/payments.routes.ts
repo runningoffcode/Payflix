@@ -158,6 +158,10 @@ router.post('/seamless', async (req, res) => {
       recordCreatorAnalyticsDelta(video.creatorWallet, analyticsDelta),
     ]);
 
+    // Keep the video earnings column in sync so creator dashboards reflect new revenue
+    const nextEarnings = (video.earnings || 0) + creatorAmount;
+    await db.updateVideo(video.id, { earnings: nextEarnings });
+
     console.log(`   ✅ Seamless payment complete!`);
 
     return res.json({
@@ -338,6 +342,10 @@ router.post('/direct', async (req, res) => {
 
     // Increment video views
     await db.incrementVideoViews(videoId);
+
+    // Reflect the new revenue in the video row for creator stats/profile cards
+    const nextEarnings = (video.earnings || 0) + creatorAmount;
+    await db.updateVideo(video.id, { earnings: nextEarnings });
 
     return res.json({
       success: true,

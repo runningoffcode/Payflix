@@ -188,9 +188,11 @@ export function DigitalIDBadge({
         <div>
           <p className="text-xs uppercase tracking-wide text-neutral-500">Latest verification</p>
           <p className="text-white">
-            {data.highlights.latestPaymentAt
+            {data.highlights.hasVerifiedPayments && data.highlights.latestPaymentAt
               ? formatVerificationTime(data.highlights.latestPaymentAt)
-              : 'Awaiting first payment'}
+              : data.recentPayments.length > 0
+                ? 'Awaiting on-chain verification'
+                : 'Awaiting first payment'}
           </p>
         </div>
         {data.viewerContext?.session && (
@@ -445,10 +447,10 @@ function DigitalIdModal({ data, tokens, onClose, recentPayment }: DigitalIdModal
 
         {recentPayment && (
           <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm text-emerald-200">
-            Latest payout of {formatCurrency(recentPayment.amount)} verified{' '}
+            Latest payout of {formatCurrency(recentPayment.amount)}{' '}
             {recentPayment.verifiedAt
-              ? formatRelativeTime(recentPayment.verifiedAt)
-              : 'recently'}
+              ? `verified ${formatRelativeTime(recentPayment.verifiedAt)}`
+              : 'awaiting verification'}
             .
           </div>
         )}
