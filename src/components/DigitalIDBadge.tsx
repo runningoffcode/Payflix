@@ -40,6 +40,7 @@ export function DigitalIDBadge({
   const { data, loading, error } = useDigitalId(creatorWallet, videoId, activated);
   const [hovered, setHovered] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [liveNow, setLiveNow] = useState(Date.now());
   const [tokenItems, setTokenItems] = useState<TokenDisplayItem[] | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
   const { connection } = useConnection();
@@ -189,7 +190,7 @@ export function DigitalIDBadge({
           <p className="text-xs uppercase tracking-wide text-neutral-500">Latest verification</p>
           <p className="text-white">
             {data.highlights.hasVerifiedPayments && data.highlights.latestPaymentAt
-              ? formatVerificationTime(data.highlights.latestPaymentAt)
+              ? formatVerificationTime(data.highlights.latestPaymentAt, liveNow)
               : data.recentPayments.length > 0
                 ? 'Awaiting on-chain verification'
                 : 'Awaiting first payment'}
@@ -226,6 +227,21 @@ export function DigitalIDBadge({
   };
 
   const handleBlur = () => setHovered(false);
+
+  const liveUpdatesEnabled = hovered || modalOpen;
+
+  useEffect(() => {
+    if (!liveUpdatesEnabled) {
+      return;
+    }
+    setLiveNow(Date.now());
+    const intervalId = window.setInterval(() => {
+      setLiveNow(Date.now());
+    }, 1000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [liveUpdatesEnabled]);
 
   return (
     <div
@@ -278,6 +294,7 @@ export function DigitalIDBadge({
           tokens={{ items: tokenItems, loading: tokenLoading }}
           onClose={closeModal}
           recentPayment={latestPayment}
+          referenceTime={liveNow}
         />
       )}
     </div>
@@ -289,9 +306,10 @@ interface DigitalIdModalProps {
   tokens: { items: TokenDisplayItem[] | null; loading: boolean };
   onClose: () => void;
   recentPayment: DigitalIdPayment | null;
+  referenceTime: number;
 }
 
-function DigitalIdModal({ data, tokens, onClose, recentPayment }: DigitalIdModalProps) {
+function DigitalIdModal({ data, tokens, onClose, recentPayment, referenceTime }: DigitalIdModalProps) {
   if (!data || typeof document === 'undefined') return null;
 
   return createPortal(
@@ -381,7 +399,7 @@ function DigitalIdModal({ data, tokens, onClose, recentPayment }: DigitalIdModal
                       </p>
                       <p className="text-xs text-neutral-400">
                         {payment.verifiedAt
-                          ? formatRelativeTime(payment.verifiedAt)
+                          ? formatRelativeTime(payment.verifiedAt, referenceTime)
                           : 'Pending verification'}
                       </p>
                     </div>
@@ -449,7 +467,7 @@ function DigitalIdModal({ data, tokens, onClose, recentPayment }: DigitalIdModal
           <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm text-emerald-200">
             Latest payout of {formatCurrency(recentPayment.amount)}{' '}
             {recentPayment.verifiedAt
-              ? `verified ${formatRelativeTime(recentPayment.verifiedAt)}`
+              ? formatVerificationTime(recentPayment.verifiedAt, referenceTime)
               : 'awaiting verification'}
             .
           </div>
@@ -473,34 +491,50 @@ function formatCurrency(value: number) {
   }).format(value || 0);
 }
 
-function formatRelativeTime(dateString: string) {
+function formatRelativeTime(dateString: string, referenceTime: number = Date.now()) {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) {
     return 'Unknown';
   }
-  const diffMs = date.getTime() - Date.now();
-  const diffMinutes = Math.round(diffMs / (60 * 1000));
-  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-
-  if (Math.abs(diffMinutes) < 60) {
-    return rtf.format(diffMinutes, 'minute');
+  const diffSeconds = Math.max(0, Math.floor((referenceTime - date.getTime()) / 1000));
+  if (diffSeconds < 5) {
+    return 'just now';
   }
-  const diffHours = Math.round(diffMinutes / 60);
-  if (Math.abs(diffHours) < 24) {
-    return rtf.format(diffHours, 'hour');
+  if (diffSeconds < 60) {
+    return `${diffSeconds} second${diffSeconds === 1 ? '' : 's'} ago`;
   }
-  const diffDays = Math.round(diffHours / 24);
-  return rtf.format(diffDays, 'day');
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  if (diffMinutes < 60) {
+    return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
+  }
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+  }
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) {
+    return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+  }
+  return date.toLocaleDateString();
 }
 
-function formatVerificationTime(dateString: string) {
+function formatVerificationTime(dateString: string, referenceTime: number = Date.now()) {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) {
     return 'Unknown';
   }
-  const diffMs = Date.now() - date.getTime();
-  if (diffMs < 60 * 1000) {
-    return 'Verified moments ago';
+  const relative = formatRelativeTime(dateString, referenceTime);
+  if (relative === 'Unknown') {
+    return 'Verification time unknown';
   }
-  return `Verified at ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  if (relative === 'just now') {
+    return 'Verified just now';
+  }
+  if (relative.includes('ago')) {
+    return `Verified ${relative}`;
+  }
+  return `Verified on ${date.toLocaleDateString()} ${date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  })}`;
 }
