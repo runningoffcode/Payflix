@@ -167,12 +167,10 @@ router.post('/', async (req: Request, res: Response) => {
         status: 'verified',
       });
 
-      if (process.env.NODE_ENV !== 'production') {
-        await db.updatePayment(paymentRecord.id, {
-          status: 'verified',
-          verifiedAt: new Date(),
-        });
-      }
+      await db.updatePayment(paymentRecord.id, {
+        status: 'verified',
+        verifiedAt: new Date(),
+      });
     } else if (isCreatorCommenting && commentPrice > 0) {
       console.log('🔁 Creator commenting on own video - skipping payment deduction.');
     }

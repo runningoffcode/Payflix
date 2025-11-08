@@ -154,6 +154,8 @@ async function buildPublicPayload(walletAddress: string): Promise<DigitalIdPubli
   const videos = (videosRaw as Video[]) || [];
   const payments = (paymentsRaw as Payment[]) || [];
 
+  await backfillVerifiedTimestamps(payments);
+
   const videoLookup = new Map<string, Video>();
   videos.forEach((video) => videoLookup.set(video.id, video));
 
@@ -349,6 +351,28 @@ async function buildViewerContext(viewerWallet: string, videoId?: string) {
     session,
     streaming,
   };
+}
+
+async function backfillVerifiedTimestamps(payments: Payment[]) {
+  const missing = payments.filter(
+    (payment) => payment.status === 'verified' && !payment.verifiedAt
+  );
+
+  if (!missing.length) {
+    return;
+  }
+
+  await Promise.all(
+    missing.map((payment) =>
+      db.updatePayment(payment.id, {
+        verifiedAt: payment.createdAt,
+      })
+    )
+  );
+
+  missing.forEach((payment) => {
+    payment.verifiedAt = payment.createdAt;
+  });
 }
 
 export default router;
