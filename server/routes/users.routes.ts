@@ -105,7 +105,14 @@ router.get('/profile', async (req: Request, res: Response) => {
     const videoAccess = isSelf ? await db.getUserVideoAccess(user.id) : [];
     const payments = isSelf ? await db.getPaymentsByUser(user.id) : [];
     const creatorVideos = user.isCreator ? await db.getVideosByCreator(user.id) : [];
+    const creatorPayments = user.isCreator
+      ? await db.getPaymentsByCreatorWallet(user.walletAddress, 1000)
+      : [];
     const subscriberCount = await db.getSubscriberCount(user.walletAddress);
+    const totalCreatorEarnings = creatorPayments.reduce(
+      (sum, payment) => sum + (payment.creatorAmount || 0),
+      0
+    );
 
     res.json({
       user: {
@@ -121,7 +128,7 @@ router.get('/profile', async (req: Request, res: Response) => {
         videosOwned: videoAccess.length,
         totalSpent: payments.reduce((sum, p) => sum + p.amount, 0),
         videosCreated: creatorVideos.length,
-        totalEarnings: creatorVideos.reduce((sum, v) => sum + v.earnings, 0),
+        totalEarnings: totalCreatorEarnings,
         subscriberCount,
       },
       purchasedVideos: videoAccess.map((va) => va.videoId),

@@ -76,7 +76,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Fetch video to check comment settings
     const { data: video, error: videoError } = await supabase
       .from('videos')
-      .select('id, title, comments_enabled, comment_price, creator_wallet')
+      .select('id, title, comments_enabled, comment_price, creator_wallet, earnings')
       .eq('id', videoId)
       .single();
 
@@ -171,6 +171,11 @@ router.post('/', async (req: Request, res: Response) => {
         status: 'verified',
         verifiedAt: new Date(),
       });
+
+      const currentEarnings =
+        typeof video.earnings === 'number' && !Number.isNaN(video.earnings) ? video.earnings : 0;
+      const nextEarnings = currentEarnings + creatorAmount;
+      await db.updateVideo(video.id, { earnings: nextEarnings });
     } else if (isCreatorCommenting && commentPrice > 0) {
       console.log('🔁 Creator commenting on own video - skipping payment deduction.');
     }
