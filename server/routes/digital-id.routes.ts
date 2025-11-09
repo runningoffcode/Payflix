@@ -137,7 +137,7 @@ export function invalidateDigitalIdCache(walletAddress: string) {
   publicCache.delete(walletAddress.toLowerCase());
 }
 
-async function buildPublicPayload(walletAddress: string): Promise<DigitalIdPublicPayload> {
+export async function buildPublicPayload(walletAddress: string): Promise<DigitalIdPublicPayload> {
   const user = await db.getUserByWallet(walletAddress);
   if (!user) {
     const err: any = new Error('Creator not found');

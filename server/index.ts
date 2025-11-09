@@ -25,6 +25,7 @@ import commentsRoutes from './routes/comments.routes';
 import subscriptionsRoutes from './routes/subscriptions.routes';
 import digitalIdRoutes from './routes/digital-id.routes';
 import telemetryRoutes from './routes/telemetry.routes';
+import mcpRoutes from './routes/mcp.routes';
 // TODO: Fix these routes to work with Supabase
 // import creatorRoutes from './routes/creator.routes';
 
@@ -93,6 +94,7 @@ app.use('/api/comments', commentsRoutes);
 app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/digital-id', digitalIdRoutes);
 app.use('/api/telemetry', telemetryRoutes);
+app.use('/api/mcp', mcpRoutes);
 // TODO: Fix these routes to work with Supabase
 // app.use('/api/creator', creatorRoutes);
 

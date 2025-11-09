@@ -6,6 +6,10 @@
 import { Router, Request, Response } from 'express';
 import { x402Facilitator } from '../services/x402-facilitator.service';
 
+const daydreamsKey = process.env.DAYDREAMS_API_KEY;
+const daydreamsSpendCap = parseFloat(process.env.DAYDREAMS_FACILITATOR_CAP_USDC || '0');
+let daydreamsSpendTotal = 0;
+
 const router = Router();
 
 /**
@@ -144,6 +148,90 @@ router.get('/health', (req: Request, res: Response) => {
     network: config.network,
     supportedTokens: config.supportedTokens.length,
   });
+});
+
+router.post('/proxy/:action', async (req: Request, res: Response) => {
+  try {
+    if (!daydreamsKey) {
+      return res.status(503).json({
+        error: 'Proxy disabled',
+        message: 'DAYDREAMS_API_KEY not configured',
+      });
+    }
+
+    const apiKey = req.headers['x-daydreams-key'];
+    if (!apiKey || apiKey !== daydreamsKey) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Invalid Daydreams key',
+      });
+    }
+
+    const { action } = req.params;
+    const { transaction, network, token, amount, recipient } = req.body || {};
+
+    if (!transaction || !network || !token || !amount || !recipient) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        required: ['transaction', 'network', 'token', 'amount', 'recipient'],
+      });
+    }
+
+    if (action === 'verify') {
+      const result = await x402Facilitator.verifyPayment({
+        transaction,
+        network,
+        token,
+        amount,
+        recipient,
+      });
+
+      if (!result.valid) {
+        return res.status(400).json({ valid: false, reason: result.reason });
+      }
+
+      return res.json({ valid: true, details: result.details });
+    }
+
+    if (action === 'settle') {
+      const spend = Number(amount) || 0;
+      if (daydreamsSpendCap && daydreamsSpendTotal + spend > daydreamsSpendCap) {
+        return res.status(429).json({
+          error: 'Spend cap exceeded',
+          message: 'Daydreams facilitator allowance exhausted',
+        });
+      }
+
+      const result = await x402Facilitator.settlePayment({
+        transaction,
+        network,
+        token,
+        amount,
+        recipient,
+      });
+
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error });
+      }
+
+      daydreamsSpendTotal += spend;
+
+      return res.json({
+        success: true,
+        signature: result.signature,
+        remainingAllowance:
+          daydreamsSpendCap > 0 ? Math.max(daydreamsSpendCap - daydreamsSpendTotal, 0) : null,
+      });
+    }
+
+    return res.status(404).json({ error: 'Unknown proxy action' });
+  } catch (error: any) {
+    console.error('Facilitator proxy error:', error);
+    return res.status(500).json({
+      error: 'Proxy failure',
+      message: error.message || 'Unexpected facilitator proxy error',
+    });
+  }
 });
 
 export default router;

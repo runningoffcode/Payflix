@@ -5,14 +5,7 @@
  */
 
 import { Router } from 'express';
-import { v4 as uuidv4 } from 'uuid';
-import { sessionPaymentService } from '../services/session-payment.service';
-import { db } from '../database/db-factory';
-import {
-  recordCreatorAnalyticsDelta,
-  recordVideoAnalyticsDelta,
-} from '../services/analytics-upsert.service';
-import { invalidateDigitalIdCache } from './digital-id.routes';
+import { processSeamlessVideoUnlock, SeamlessPaymentError } from '../services/payment-orchestrator.service';
 
 const router = Router();
 
@@ -23,159 +16,12 @@ const router = Router();
 router.post('/seamless', async (req, res) => {
   try {
     const { videoId, userWallet } = req.body;
-
-    if (!videoId || !userWallet) {
-      return res.status(400).json({
-        error: 'Missing required fields',
-        message: 'videoId and userWallet are required',
-      });
-    }
-
-    console.log(`\n🎬 Seamless payment request for video ${videoId}`);
-
-    // Get video details
-    const video = await db.getVideoById(videoId);
-    if (!video) {
-      return res.status(404).json({
-        error: 'Video not found',
-      });
-    }
-
-    if (!video.creatorWallet) {
-      return res.status(400).json({
-        error: 'Invalid video configuration',
-        message: 'Video does not have a creator wallet configured',
-      });
-    }
-
-    // Get or create user
-    let user = await db.getUserByWallet(userWallet);
-    if (!user) {
-      console.log(`   Creating new user for wallet: ${userWallet}`);
-      user = await db.createUser({
-        walletAddress: userWallet,
-        username: `User ${userWallet.substring(0, 8)}`,
-        email: null,
-        profilePicture: null,
-      });
-    }
-
-    // Check if user already paid
-    const existingPayment = await db.getUserPaymentForVideo(user.id, videoId);
-    if (existingPayment && existingPayment.status === 'verified') {
-      console.log(`   ✅ User already paid for this video`);
-      return res.json({
-        success: true,
-        alreadyPaid: true,
-        signature: existingPayment.transactionSignature,
-        message: 'You already have access to this video',
-      });
-    }
-
-    // Check if user has an active session
-    const hasSession = await sessionPaymentService.hasActiveSession(userWallet);
-    if (!hasSession) {
-      return res.status(402).json({
-        error: 'No Active Session',
-        message: 'Please deposit USDC to start watching videos',
-        requiresSession: true,
-      });
-    }
-
-    // Get session balance
-    const sessionBalance = await sessionPaymentService.getSessionBalance(userWallet);
-    if (sessionBalance.remainingAmount && sessionBalance.remainingAmount < video.priceUsdc) {
-      return res.status(402).json({
-        error: 'Insufficient Balance',
-        message: `Your balance: $${sessionBalance.remainingAmount} USDC. Required: $${video.priceUsdc} USDC. Please deposit more to continue watching.`,
-        requiresTopUp: true,
-        remaining: sessionBalance.remainingAmount,
-        required: video.priceUsdc,
-      });
-    }
-
-    // Process seamless payment via session key
-    const result = await sessionPaymentService.processSessionPayment({
-      userWallet,
-      videoId,
-      amount: video.priceUsdc,
-      creatorWallet: video.creatorWallet,
-    });
-
-    if (!result.success) {
-      return res.status(500).json({
-        error: 'Payment Failed',
-        message: result.error || 'Failed to process payment',
-      });
-    }
-
-    // Record payment in database
-    const platformFeePercent = 2.85;
-    const platformAmount = video.priceUsdc * (platformFeePercent / 100);
-    const creatorAmount = video.priceUsdc - platformAmount;
-
-    const paymentId = uuidv4();
-    const paymentRecord = await db.createPayment({
-      id: paymentId,
-      videoId: video.id,
-      userId: user.id,
-      userWallet,
-      creatorWallet: video.creatorWallet,
-      amount: video.priceUsdc,
-      creatorAmount,
-      platformAmount,
-      transactionSignature: result.signature!,
-      status: 'verified',
-    });
-
-    await db.updatePayment(paymentRecord.id, {
-      status: 'verified',
-      verifiedAt: new Date(),
-    });
-
-    // Grant video access (lifetime access)
-    await db.grantVideoAccess({
-      userId: user.id,
-      videoId: video.id,
-      paymentId,
-      grantedAt: new Date(),
-      expiresAt: new Date('2099-12-31'), // Lifetime access
-    });
-
-    console.log(`   ✅ Video access granted to user`);
-
-    // Increment video views
-    await db.incrementVideoViews(videoId);
-
-    // Record analytics
-    const analyticsDelta = {
-      views: 1,
-      revenue: video.priceUsdc,
-    };
-    await Promise.all([
-      recordVideoAnalyticsDelta(video.id, analyticsDelta),
-      recordCreatorAnalyticsDelta(video.creatorWallet, analyticsDelta),
-    ]);
-
-    // Keep the video earnings column in sync so creator dashboards reflect new revenue
-    const nextEarnings = (video.earnings || 0) + creatorAmount;
-    await db.updateVideo(video.id, { earnings: nextEarnings });
-
-    invalidateDigitalIdCache(video.creatorWallet);
-
-    console.log(`   ✅ Seamless payment complete!`);
-
-    return res.json({
-      success: true,
-      signature: result.signature,
-      message: 'Payment successful! Enjoy your video.',
-      payment: {
-        amount: video.priceUsdc,
-        signature: result.signature,
-        videoId,
-      },
-    });
+    const result = await processSeamlessVideoUnlock({ videoId, userWallet });
+    return res.json(result);
   } catch (error: any) {
+    if (error instanceof SeamlessPaymentError) {
+      return res.status(error.status).json(error.payload);
+    }
     console.error('❌ Seamless payment error:', error);
     return res.status(500).json({
       error: 'Payment Processing Error',
