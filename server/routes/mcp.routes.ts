@@ -5,6 +5,7 @@ import {
   processSeamlessVideoUnlock,
   SeamlessPaymentError,
 } from '../services/payment-orchestrator.service';
+import { sessionPaymentService } from '../services/session-payment.service';
 
 const router = Router();
 
@@ -47,6 +48,34 @@ router.post('/', async (req, res) => {
       case 'payflix.listVideos': {
         const videos = await db.getAllVideos();
         return res.json({ success: true, result: videos });
+      }
+      case 'payflix.getSessionBalance': {
+        const wallet = params?.userWallet?.trim();
+        if (!wallet) {
+          return res.status(400).json({ error: 'userWallet parameter required' });
+        }
+        const balance = await sessionPaymentService.getSessionBalance(wallet);
+        return res.json({ success: true, result: balance });
+      }
+      case 'payflix.listCreatorVideos': {
+        const wallet = params?.wallet?.trim();
+        if (!wallet) {
+          return res.status(400).json({ error: 'wallet parameter required' });
+        }
+        const user = await db.getUserByWallet(wallet);
+        if (!user || !user.isCreator) {
+          return res.status(404).json({ error: 'Creator not found' });
+        }
+        const videos = await db.getVideosByCreator(user.id);
+        return res.json({ success: true, result: videos });
+      }
+      case 'payflix.getRecentPayouts': {
+        const wallet = params?.wallet?.trim();
+        if (!wallet) {
+          return res.status(400).json({ error: 'wallet parameter required' });
+        }
+        const payload = await buildPublicPayload(wallet);
+        return res.json({ success: true, result: payload.recentPayments });
       }
       case 'payflix.unlockVideo': {
         const videoId = params?.videoId;

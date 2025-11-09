@@ -13,6 +13,18 @@ const payflixContext = context({
       const res = await mcpCall("payflix.getCreatorStats", { wallet });
       return res.result;
     },
+    listCreatorVideos: async ({ wallet }) => {
+      const res = await mcpCall("payflix.listCreatorVideos", { wallet });
+      return res.result;
+    },
+    getSessionBalance: async ({ userWallet }) => {
+      const res = await mcpCall("payflix.getSessionBalance", { userWallet });
+      return res.result;
+    },
+    getRecentPayouts: async ({ wallet }) => {
+      const res = await mcpCall("payflix.getRecentPayouts", { wallet });
+      return res.result;
+    },
     unlockVideo: async ({ videoId, userWallet }) => {
       const res = await mcpCall("payflix.unlockVideo", { videoId, userWallet });
       return res.result;
@@ -51,6 +63,9 @@ async function call(method, params) {
 (async () => {
   const stats = await call("payflix.getCreatorStats", { wallet: "SvsnAvyo..." });
   console.log(stats.highlights);
+
+  const balance = await call("payflix.getSessionBalance", { userWallet: "Wallet..." });
+  console.log(balance);
 })();
 ```
 

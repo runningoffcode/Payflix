@@ -6,8 +6,10 @@
 | --- | --- | --- |
 | `payflix.getCreatorStats` | Fetch Digital ID payload for wallet | No |
 | `payflix.listVideos` | List available videos/filters | No |
+| `payflix.getSessionBalance` | Return current session allowance/spent/remaining | No |
+| `payflix.listCreatorVideos` | List videos for a specific creator wallet | No |
+| `payflix.getRecentPayouts` | Return recent verified payouts for a creator | No |
 | `payflix.unlockVideo` | Trigger seamless unlock for video/session | Yes |
-| `payflix.postComment` | Post paid comment via session key | Yes |
 
 ## Request Schema
 - MCP request → JSON RPC payload containing:

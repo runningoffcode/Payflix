@@ -23,9 +23,12 @@
 ## MCP & Proxy Tests
 1. **listVideos**
    - MCP call should return public video array; assert HTTP 200 + `success: true`
+   - Also test `payflix.listCreatorVideos` with a known wallet (expect creator-only set)
 2. **unlockVideo via MCP**
    - Ensure session has funds, call `payflix.unlockVideo`, verify payment row + Digital ID cache bust
-3. **Proxy spend cap**
+3. **Session balance command**
+   - Call `payflix.getSessionBalance` before/after unlock to confirm spent amount increases
+4. **Proxy spend cap**
    - Call `/api/facilitator/proxy/settle` repeatedly until cap is reached; expect HTTP 429 with cap message
-4. **Daydreams agent end-to-end**
+5. **Daydreams agent end-to-end**
    - Run Daydreams sample agent, have it fetch stats and unlock a video; confirm facilitator logs include `X-Daydreams-Source`

@@ -3,8 +3,8 @@
 ## Workstreams
 
 1. **MCP Server Shim** *(In Progress)*
-   - Status: Core commands (`getCreatorStats`, `listVideos`, `unlockVideo`) live at `/api/mcp`
-   - Next: expose paid comment command once session endpoints are confirmed
+   - Status: Core commands (`getCreatorStats`, `listVideos`, `getSessionBalance`, `listCreatorVideos`, `getRecentPayouts`, `unlockVideo`) live at `/api/mcp`
+   - Next: evaluate paid comment command once session endpoints are confirmed
 
 2. **Facilitator Credential Strategy** *(In Progress)*
    - Status: Proxy endpoint + spend cap env vars live

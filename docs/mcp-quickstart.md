@@ -25,6 +25,9 @@ Body example:
 Supported commands:
 - `payflix.getCreatorStats(wallet)` → returns Digital ID payload (lifetime + 24h stats, recent payouts)
 - `payflix.listVideos()` → fetches public videos with metadata
+- `payflix.getSessionBalance(userWallet)` → returns session allowance/spent/remaining
+- `payflix.listCreatorVideos(wallet)` → returns videos owned by a specific creator
+- `payflix.getRecentPayouts(wallet)` → returns the last five verified payouts
 - `payflix.unlockVideo(videoId, userWallet)` → triggers the same seamless payment flow used in the UI (requires the viewer to have an active session)
 
 ## 3. Handle responses
