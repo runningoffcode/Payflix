@@ -19,3 +19,13 @@
 ## Rollback Plan
 - Disable MCP endpoint or revoke facilitator keys if anomalous spend detected
 - Re-enable after audit
+
+## MCP & Proxy Tests
+1. **listVideos**
+   - MCP call should return public video array; assert HTTP 200 + `success: true`
+2. **unlockVideo via MCP**
+   - Ensure session has funds, call `payflix.unlockVideo`, verify payment row + Digital ID cache bust
+3. **Proxy spend cap**
+   - Call `/api/facilitator/proxy/settle` repeatedly until cap is reached; expect HTTP 429 with cap message
+4. **Daydreams agent end-to-end**
+   - Run Daydreams sample agent, have it fetch stats and unlock a video; confirm facilitator logs include `X-Daydreams-Source`

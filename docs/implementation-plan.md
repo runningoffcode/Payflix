@@ -2,30 +2,25 @@
 
 ## Workstreams
 
-1. **MCP Server Shim**
-   - Expose PayFlix endpoints (`stats`, `unlock`, `comment`) via an MCP-compliant server
-   - Owner: Backend
-   - Deliverable: `mcp/index.ts` + deployment instructions
+1. **MCP Server Shim** *(In Progress)*
+   - Status: Core commands (`getCreatorStats`, `listVideos`, `unlockVideo`) live at `/api/mcp`
+   - Next: expose paid comment command once session endpoints are confirmed
 
-2. **Facilitator Credential Strategy**
-   - Define whether Daydreams gets scoped facilitator keys or proxies through our service
-   - Owner: Payments/Infra
-   - Deliverable: `facilitator-integration.md` + env var updates
+2. **Facilitator Credential Strategy** *(In Progress)*
+   - Status: Proxy endpoint + spend cap env vars live
+   - Next: add persistence for `daydreamsSpendTotal` if we need cap across restarts
 
-3. **Daydreams Context Design**
-   - Create `payflixContext` sample using `@daydreamsai/core`
-   - Specify allowed actions, memory shape, .use() composition
-   - Owner: Integrations
+3. **Daydreams Context Design** *(Completed sample)*
+   - Sample context + Node script in `docs/mcp-agent-examples.md`
+   - Next: expand with paid comment example
 
-4. **Telemetry & Monitoring**
-   - Tag facilitator requests from Daydreams (headers/logs)
-   - Add dashboards/alerts if spend spikes or errors increase
-   - Owner: Observability
+4. **Telemetry & Monitoring** *(Ongoing)*
+   - Status: Requests tagged with `X-Daydreams-Key` header
+   - Next: dashboard/alert wiring once production traffic starts
 
-5. **Testing & Rollout**
-   - Automated tests (mock MCP → payment settle → Digital ID update)
-   - Manual hackathon checklist
-   - Owner: QA
+5. **Testing & Rollout** *(Ongoing)*
+   - Status: Playbook updated with MCP/proxy scenarios
+   - Next: Hackathon dry run + staging demo with Daydreams team
 
 ## Milestones
 

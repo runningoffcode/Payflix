@@ -1,0 +1,34 @@
+# Facilitator Proxy Runbook
+
+The Daydreams facilitator proxy allows trusted partners to reuse our existing x402 facilitator without sharing private keys.
+
+## Env Vars
+```
+DAYDREAMS_API_KEY=<random secret>
+DAYDREAMS_FACILITATOR_CAP_USDC=25
+```
+- `DAYDREAMS_API_KEY` – shared only with Daydreams to authenticate `/api/facilitator/proxy/*` calls
+- `DAYDREAMS_FACILITATOR_CAP_USDC` – cumulative USDC allowance before proxy refuses additional settlements (reset by redeploy or manual counter reset)
+
+## Request Format
+```
+POST /api/facilitator/proxy/verify or /settle
+Headers: X-Daydreams-Key: <key>
+Body: { transaction, network, token, amount, recipient }
+```
+- `verify` validates the transaction but does not spend
+- `settle` signs and broadcasts, then increments the spend counter
+
+## Monitoring
+- Log entries tagged with `X-Daydreams-Source` header
+- Track `daydreamsSpendTotal` vs cap (add dashboard/alert when >80%)
+
+## Key Rotation / Revocation
+1. Generate a new secret
+2. Update env var + redeploy
+3. Send new key to Daydreams via secure channel (password manager share or encrypted message)
+4. Revoke old key by removing from env or blocking at API gateway
+
+## Why a Cap?
+- Prevents runaway spend if an agent loops
+- Buys time to investigate anomalies before funds drain

@@ -1,0 +1,37 @@
+# PayFlix MCP Quickstart
+
+PayFlix exposes a Model Context Protocol (MCP) endpoint so agents (Daydreams, hackathon projects, or any MCP client) can fetch creator stats or trigger seamless unlocks.
+
+## 1. Request an API Key
+Email engineering@payflix.fun (or your partner contact) to receive an `MCP_API_KEY`.
+
+## 2. Send an MCP request
+Endpoint: `POST https://staging.payflix.fun/api/mcp`
+
+Headers:
+```
+Content-Type: application/json
+X-MCP-API-KEY: <your key>
+```
+
+Body example:
+```json
+{
+  "method": "payflix.getCreatorStats",
+  "params": { "wallet": "SvsnAvyo...9GS8" }
+}
+```
+
+Supported commands:
+- `payflix.getCreatorStats(wallet)` → returns Digital ID payload (lifetime + 24h stats, recent payouts)
+- `payflix.listVideos()` → fetches public videos with metadata
+- `payflix.unlockVideo(videoId, userWallet)` → triggers the same seamless payment flow used in the UI (requires the viewer to have an active session)
+
+## 3. Handle responses
+Successful responses:
+```json
+{ "success": true, "result": { ... } }
+```
+Errors return HTTP status codes with `{ "error": "...", "message": "..." }`.
+
+For advanced schemas and additional commands, see `docs/mcp-tooling.md`.

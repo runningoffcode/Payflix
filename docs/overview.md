@@ -10,6 +10,7 @@
 - `@daydreamsai/core` contexts with composable memory/state
 - Built-in **MCP client** for connecting to external tools
 - Example **x402 nanoservice** showing automated micropayments
+- Public repo: https://github.com/daydreamsai/daydreams (examples: mcp integration, x402 nanoservice)
 
 ## Joint Objective
 Allow Daydreams agents to:
