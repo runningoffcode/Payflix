@@ -8,7 +8,29 @@ import { x402Facilitator } from '../services/x402-facilitator.service';
 
 const daydreamsKey = process.env.DAYDREAMS_API_KEY;
 const daydreamsSpendCap = parseFloat(process.env.DAYDREAMS_FACILITATOR_CAP_USDC || '0');
+const daydreamsRateLimit = parseInt(process.env.DAYDREAMS_PROXY_RATE_LIMIT || '30', 10);
 let daydreamsSpendTotal = 0;
+const proxyRateMap = new Map<string, { count: number; resetAt: number }>();
+
+function enforceProxyRateLimit(key: string) {
+  if (!daydreamsRateLimit) return;
+  const now = Date.now();
+  const entry = proxyRateMap.get(key) || { count: 0, resetAt: now + 60_000 };
+  if (now > entry.resetAt) {
+    entry.count = 0;
+    entry.resetAt = now + 60_000;
+  }
+  entry.count += 1;
+  proxyRateMap.set(key, entry);
+  if (entry.count > daydreamsRateLimit) {
+    throw {
+      status: 429,
+      error: 'Rate limit exceeded',
+      message: 'Too many facilitator proxy calls. Please retry shortly.',
+      retryAfter: Math.ceil((entry.resetAt - now) / 1000),
+    };
+  }
+}
 
 const router = Router();
 
@@ -169,6 +191,12 @@ router.post('/proxy/:action', async (req: Request, res: Response) => {
 
     const { action } = req.params;
     const { transaction, network, token, amount, recipient } = req.body || {};
+
+    try {
+      enforceProxyRateLimit(String(apiKey));
+    } catch (rateErr: any) {
+      return res.status(rateErr.status || 429).json(rateErr);
+    }
 
     if (!transaction || !network || !token || !amount || !recipient) {
       return res.status(400).json({

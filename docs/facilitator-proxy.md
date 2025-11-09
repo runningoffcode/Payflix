@@ -6,9 +6,11 @@ The Daydreams facilitator proxy allows trusted partners to reuse our existing x4
 ```
 DAYDREAMS_API_KEY=<random secret>
 DAYDREAMS_FACILITATOR_CAP_USDC=25
+DAYDREAMS_PROXY_RATE_LIMIT=30
 ```
 - `DAYDREAMS_API_KEY` – shared only with Daydreams to authenticate `/api/facilitator/proxy/*` calls
 - `DAYDREAMS_FACILITATOR_CAP_USDC` – cumulative USDC allowance before proxy refuses additional settlements (reset by redeploy or manual counter reset)
+- `DAYDREAMS_PROXY_RATE_LIMIT` – per-minute limit per key (HTTP 429 errors include `retryAfter` seconds)
 
 ## Request Format
 ```
@@ -22,6 +24,7 @@ Body: { transaction, network, token, amount, recipient }
 ## Monitoring
 - Log entries tagged with `X-Daydreams-Source` header
 - Track `daydreamsSpendTotal` vs cap (add dashboard/alert when >80%)
+- Watch 4xx/5xx counts (especially 401, 429) to detect auth mistakes or rate-limit pressure
 
 ## Key Rotation / Revocation
 1. Generate a new secret

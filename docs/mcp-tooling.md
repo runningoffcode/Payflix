@@ -20,6 +20,8 @@
 ## Responses
 - Successful responses mirror PayFlix REST responses (JSON)
 - Errors use MCP error format (`code`, `message`, optional `data`)
+- Rate-limit errors include `retryAfter`
+- Payment errors may include `requiresSession`, `requiresTopUp`, or `spendCapExceeded`
 
 ## Deployment Notes
 - MCP server runs alongside backend, e.g., `node mcp/index.ts`

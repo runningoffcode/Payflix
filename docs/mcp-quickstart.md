@@ -14,6 +14,8 @@ Content-Type: application/json
 X-MCP-API-KEY: <your key>
 ```
 
+> Rate limit: 60 requests/minute per MCP key (HTTP 429 responses include `retryAfter` seconds).
+
 Body example:
 ```json
 {
@@ -36,5 +38,9 @@ Successful responses:
 { "success": true, "result": { ... } }
 ```
 Errors return HTTP status codes with `{ "error": "...", "message": "..." }`.
+Common flags:
+- `requiresSession: true` – viewer must deposit first
+- `requiresTopUp: true` – session exists but lacks balance
+- `retryAfter` – seconds until rate limit resets
 
 For advanced schemas and additional commands, see `docs/mcp-tooling.md`.
