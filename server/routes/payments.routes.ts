@@ -5,7 +5,11 @@
  */
 
 import { Router } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import { db } from '../database/db-factory';
+import { sessionPaymentService } from '../services/session-payment.service';
 import { processSeamlessVideoUnlock, SeamlessPaymentError } from '../services/payment-orchestrator.service';
+import { invalidateDigitalIdCache } from './digital-id.routes';
 
 const router = Router();
 
