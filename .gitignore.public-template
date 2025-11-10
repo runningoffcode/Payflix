@@ -1,0 +1,21 @@
+# Public Repo Gitignore Template
+
+# Env files
+.env
+.env.*
+
+# Builds / coverage
+dist/
+build/
+coverage/
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.swp
