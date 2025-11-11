@@ -19,6 +19,15 @@ PayFlix is a Solana-powered video marketplace where **MCP agents**, **Dreams orc
 
 Need MCP access? → [docs/mcp-partner-pack.md](docs/mcp-partner-pack.md)
 
+<details>
+<summary><strong>Watch the PayFlix mission-console demo</strong></summary>
+
+<video controls width="100%" src="docs/assets/payflix-demo.mp4">
+  Your browser does not support the video tag.
+</video>
+
+</details>
+
 ---
 
 ## 📑 Table of Contents
