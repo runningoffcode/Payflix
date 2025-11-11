@@ -15,11 +15,9 @@ if (!supabaseUrl || !supabaseKey) {
 
 console.log('🔧 Fixing RLS policies on videos table...\n');
 
-// Read the SQL file
-const sqlPath = path.join(process.cwd(), 'FIX_VIDEOS_RLS.sql');
+const sqlPath = path.join(process.cwd(), 'supabase/sql/legacy/FIX_VIDEOS_RLS.sql');
 const sql = fs.readFileSync(sqlPath, 'utf-8');
 
-// Split into individual statements
 const statements = sql
   .split(';')
   .map(s => s.trim())
@@ -32,7 +30,6 @@ async function fixRLS() {
 
   for (const statement of statements) {
     if (statement.includes('DO $$') || statement.includes('SELECT')) {
-      // Skip DO blocks and SELECT statements
       continue;
     }
 
@@ -42,7 +39,7 @@ async function fixRLS() {
       });
 
       if (error) {
-        console.log(`⚠️  Statement might have failed (this is often normal):`);
+        console.log(`⚠️  Statement might have failed (often normal):`);
         console.log(`   ${statement.substring(0, 60)}...`);
         console.log(`   Error: ${error.message}\n`);
       } else {
