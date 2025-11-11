@@ -21,9 +21,7 @@ Need MCP access? → [docs/mcp-partner-pack.md](docs/mcp-partner-pack.md)
 
 ### 🎥 Mission Console Demo
 
-<video controls width="100%" src="docs/assets/payflix-demo.mp4">
-  Your browser does not support the video tag.
-</video>
+[▶️ Watch the PayFlix mission-console walkthrough](docs/assets/payflix-demo.mp4)
 
 ---
 
