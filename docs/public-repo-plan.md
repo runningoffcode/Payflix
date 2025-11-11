@@ -35,11 +35,11 @@ Docs to keep private (or heavily redacted): `testing-playbook.md`, `facilitator-
 ## Public README Outline
 
 1. Hero + one-liner (PayFlix mission).
-2. Highlights (Digital ID, X‑402, MCP, creator telemetry).
+2. Highlights (Digital ID, X‑402, MCP, Daydreams).
 3. Table of Contents.
 4. Why PayFlix / Market context.
 5. Features overview.
-6. MCP access instructions (link to key request + docs).
+6. MCP & Daydreams access instructions (link to key request + docs).
 7. Docs & Guides section (link to docs index).
 8. Contributing / Contact.
 9. Security & Secrets statement.
