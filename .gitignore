@@ -21,6 +21,7 @@ app/dist/
 .env.production.local
 app/.env
 app/.env.local
+infra/.env
 
 # Logs
 npm-debug.log*
