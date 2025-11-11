@@ -130,7 +130,7 @@ Daydreams Agents ──────┼────▶ PayFlix MCP Server (Expres
 - **Formatting**: `npx prettier -w` + `npm run lint` before PRs.
 - **Testing**: `npm run build` (runs `tsc` + Vite). Log results in summaries.
 - **Docs updates**: whenever behavior changes, append to the relevant appendix or playbook (`docs/overview/platform.md` + `docs/infra/*`).
-- **Audit**: major deletions should be noted in `docs/repo-cleanup-log.md` (pattern already in place).
+- **Audit**: keep a private changelog (inside PayFlix-Core) for major deletions/refactors.
 
 ---
 
