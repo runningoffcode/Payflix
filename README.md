@@ -110,8 +110,6 @@ Daydreams Agents ──────┼────▶ PayFlix MCP Server (Expres
    - Frontend: `http://localhost:3000`
    - Dive into Appendices C–F in [`docs/overview/platform.md`](docs/overview/platform.md) for the full Start Here & Quick Start narratives.
 
-Need partner-grade onboarding? → [`docs/guide-for-christian.md`](docs/guide-for-christian.md)
-
 ---
 
 ## 📚 Documentation Hub
@@ -123,7 +121,6 @@ Need partner-grade onboarding? → [`docs/guide-for-christian.md`](docs/guide-fo
 | MCP docs, partner packs, agent examples                                                                    | [`docs/mcp-tooling.md`](docs/mcp-tooling.md), [`docs/mcp-partner-pack.md`](docs/mcp-partner-pack.md) |
 | Dreams integrations / Daydreams agent briefs                                                               | [`docs/daydreams-agent-contexts.md`](docs/daydreams-agent-contexts.md)                               |
 | Briefings & pitch decks                                                                                    | [`docs/briefings/README.md`](docs/briefings/README.md)                                               |
-| Cleanup audit trail                                                                                        | [`docs/repo-cleanup-log.md`](docs/repo-cleanup-log.md)                                               |
 
 ---
 
