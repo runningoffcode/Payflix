@@ -13,7 +13,7 @@ PayFlix is a Solana-powered video marketplace where **MCP agents**, **Dreams orc
 
 - **MCP-first surface** – agents call PayFlix via JSON-RPC commands (`docs/mcp-tooling.md`).
 - **X402 session keys** – seamless payments + session modal (Appendix D in `docs/infra/auth.md`).
-- **Dreams/DAG pipelines** – deterministic hashing feeds Grok research + partner APIs (`docs/overview/platform.md`).
+- **Dreams/DAG pipelines** – deterministic hashing feeds partner telemetry APIs (`docs/overview/platform.md`).
 - **Mission-console UI** – translucent overlays, telemetry timelines, and MCP unlock badges (`docs/infra/ui.md`).
 - **Partner-ready docs** – everything (start-here, quick start, file inventory, backend readme) lives in `docs/overview/platform.md` Appendices C–I.
 
@@ -37,7 +37,7 @@ Need MCP access? → [docs/mcp-partner-pack.md](docs/mcp-partner-pack.md)
 ## 🌟 Platform Highlights
 
 - **Model Context Protocol** – `payflix.getCreatorStats`, `payflix.unlockVideo`, `payflix.getSessionBalance`, etc. are documented in [docs/mcp-tooling.md](docs/mcp-tooling.md) with sample agents (`docs/mcp-agent-examples.md`).
-- **Dreams integrations** – deterministic DAG hashing + Grok prompt suites feed partner agents; see `docs/daydreams-agent-contexts.md` and `docs/overview/platform.md#appendix-i`.
+- **Dreams integrations** – deterministic DAG hashing powers partner agents; see `docs/daydreams-agent-contexts.md` and `docs/overview/platform.md#appendix-i`.
 - **X402 session experience** – Appendix D/E in `docs/infra/auth.md` cover the modal, facilitator, and Corbits integration for 97.65 % payouts.
 - **PayFlix UI** – mission-console overlays, parallax panes, status timelines, and gradient CTAs described in [`docs/infra/ui.md`](docs/infra/ui.md).
 - **Uploads + Arweave** – full storage playbook (Digital ID, Supabase buckets, Arweave wallets) lives in [`docs/infra/uploads.md`](docs/infra/uploads.md).
@@ -53,7 +53,7 @@ Daydreams Agents ──────┼────▶ PayFlix MCP Server (Expres
                        │                    │
                        │                    │ X402 Session Service
                        │                    ▼
-                    Supabase (DB/Auth/Storage) ─┬─ Grok/DAG pipelines
+                    Supabase (DB/Auth/Storage) ─┬─ Dreams/DAG pipelines
                                                 └─ Arweave permanent storage
 ```
 
@@ -81,8 +81,8 @@ Daydreams Agents ──────┼────▶ PayFlix MCP Server (Expres
 
 ### Dreams / DAG Intelligence
 
-- Canonical feeds hashed per step (DexScreener, Birdeye, Helius) per `docs/overview/platform.md#deterministic-dag`.
-- Grok prompt suite (8 parallel) drives suggested offers + wallet telemetry (`docs/daydreams-agent-contexts.md`).
+- Canonical feeds hashed per step keep agent telemetry deterministic (`docs/overview/platform.md#deterministic-dag`).
+- Partner prompt automation drives suggested offers + wallet telemetry (`docs/daydreams-agent-contexts.md`).
 
 ### PayFlix UI / Unlock Flow
 
