@@ -1,0 +1,360 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.db = void 0;
+/**
+ * In-Memory Database
+ * For production, replace with PostgreSQL, MongoDB, or other database
+ */
+class Database {
+    constructor() {
+        Object.defineProperty(this, "users", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+        Object.defineProperty(this, "videos", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+        Object.defineProperty(this, "payments", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+        Object.defineProperty(this, "videoAccess", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+        Object.defineProperty(this, "subscriptions", {
+            enumerable: true,
+            configurable: true,
+            writable: true,
+            value: new Map()
+        });
+    }
+    // Users
+    async createUser(user) {
+        const newUser = {
+            ...user,
+            id: `user_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+            createdAt: new Date(),
+        };
+        this.users.set(newUser.id, newUser);
+        return newUser;
+    }
+    async getUserById(id) {
+        return this.users.get(id) || null;
+    }
+    async getUserByWallet(walletAddress) {
+        for (const user of this.users.values()) {
+            if (user.walletAddress.toLowerCase() === walletAddress.toLowerCase()) {
+                return user;
+            }
+        }
+        return null;
+    }
+    async updateUser(id, updates) {
+        const user = this.users.get(id);
+        if (!user)
+            return null;
+        const updated = { ...user, ...updates };
+        this.users.set(id, updated);
+        return updated;
+    }
+    ensureSubscriptionBucket(subscriberWallet) {
+        if (!this.subscriptions.has(subscriberWallet)) {
+            this.subscriptions.set(subscriberWallet, new Map());
+        }
+        return this.subscriptions.get(subscriberWallet);
+    }
+    async getSubscriberCount(creatorWallet) {
+        let count = 0;
+        for (const subscriptions of this.subscriptions.values()) {
+            if (subscriptions.has(creatorWallet)) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+    async getSubscriptionsBySubscriber(subscriberWallet) {
+        const bucket = this.subscriptions.get(subscriberWallet);
+        if (!bucket) {
+            return [];
+        }
+        return Array.from(bucket.entries()).map(([creatorWallet, subscribedAt]) => {
+            const creator = Array.from(this.users.values()).find((user) => user.walletAddress === creatorWallet);
+            return {
+                id: `${subscriberWallet}_${creatorWallet}`,
+                subscriberWallet,
+                creatorWallet,
+                subscribedAt,
+                creator: creator
+                    ? {
+                        id: creator.id,
+                        walletAddress: creator.walletAddress,
+                        username: creator.username,
+                        profilePictureUrl: creator.profilePictureUrl,
+                        bio: creator.bio ?? null,
+                    }
+                    : undefined,
+            };
+        });
+    }
+    async createSubscription(subscriberWallet, creatorWallet) {
+        const bucket = this.ensureSubscriptionBucket(subscriberWallet);
+        bucket.set(creatorWallet, new Date());
+    }
+    async deleteSubscription(subscriberWallet, creatorWallet) {
+        const bucket = this.subscriptions.get(subscriberWallet);
+        bucket?.delete(creatorWallet);
+    }
+    async isSubscribed(subscriberWallet, creatorWallet) {
+        const bucket = this.subscriptions.get(subscriberWallet);
+        return bucket?.has(creatorWallet) ?? false;
+    }
+    // Videos
+    async createVideo(video) {
+        this.videos.set(video.id, video);
+        return video;
+    }
+    async getVideoById(id) {
+        return this.videos.get(id) || null;
+    }
+    mapVideoWithCreator(video) {
+        const creator = this.users.get(video.creatorId);
+        return {
+            ...video,
+            creatorUsername: creator?.username || null,
+            creatorProfilePicture: creator?.profilePictureUrl || null,
+        };
+    }
+    async getAllVideos() {
+        // Filter out archived videos from public listings
+        return Array.from(this.videos.values())
+            .filter((v) => !v.archived)
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+            .map((video) => this.mapVideoWithCreator(video));
+    }
+    async searchVideos(params) {
+        const { search, limit = 20, offset = 0, category, orderBy = 'created_at', orderDirection = 'desc', creatorWallet, } = params;
+        const normalizedSearch = search.trim().toLowerCase();
+        let results = Array.from(this.videos.values()).filter((video) => {
+            if (video.archived)
+                return false;
+            if (category && video.category !== category)
+                return false;
+            if (creatorWallet && video.creatorWallet !== creatorWallet)
+                return false;
+            const creator = this.users.get(video.creatorId);
+            const haystack = [
+                video.title,
+                video.description,
+                creator?.username ?? '',
+            ]
+                .join(' ')
+                .toLowerCase();
+            return haystack.includes(normalizedSearch);
+        });
+        results = results.sort((a, b) => {
+            const direction = orderDirection === 'asc' ? 1 : -1;
+            switch (orderBy) {
+                case 'views':
+                    return (a.views - b.views) * direction;
+                case 'price_usdc':
+                    return (a.priceUsdc - b.priceUsdc) * direction;
+                case 'created_at':
+                default:
+                    return (a.createdAt.getTime() - b.createdAt.getTime()) * direction;
+            }
+        });
+        const paged = results.slice(offset, offset + limit).map((video) => this.mapVideoWithCreator(video));
+        return {
+            videos: paged,
+            total: results.length,
+        };
+    }
+    async getVideosByCreator(creatorId) {
+        return Array.from(this.videos.values())
+            .filter((v) => v.creatorId === creatorId)
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+    async updateVideo(id, updates) {
+        const video = this.videos.get(id);
+        if (!video)
+            return null;
+        const updated = { ...video, ...updates, updatedAt: new Date() };
+        this.videos.set(id, updated);
+        return updated;
+    }
+    async deleteVideo(id) {
+        return this.videos.delete(id);
+    }
+    async incrementVideoViews(videoId) {
+        const video = this.videos.get(videoId);
+        if (video) {
+            video.views += 1;
+            this.videos.set(videoId, video);
+        }
+    }
+    // Payments
+    async createPayment(payment) {
+        this.payments.set(payment.id, payment);
+        return payment;
+    }
+    async getPaymentById(id) {
+        return this.payments.get(id) || null;
+    }
+    async getPaymentByTransaction(signature) {
+        for (const payment of this.payments.values()) {
+            if (payment.transactionSignature === signature) {
+                return payment;
+            }
+        }
+        return null;
+    }
+    async getPaymentsByUser(userId) {
+        return Array.from(this.payments.values())
+            .filter((p) => p.userId === userId)
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+    async getPaymentsByVideo(videoId) {
+        return Array.from(this.payments.values())
+            .filter((p) => p.videoId === videoId)
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+    async getPaymentsByCreatorWallet(creatorWallet, limit = 20) {
+        return Array.from(this.payments.values())
+            .filter((p) => p.creatorWallet === creatorWallet && p.status === 'verified')
+            .sort((a, b) => {
+            const aTime = (a.verifiedAt?.getTime() ?? 0) || a.createdAt.getTime();
+            const bTime = (b.verifiedAt?.getTime() ?? 0) || b.createdAt.getTime();
+            return bTime - aTime;
+        })
+            .slice(0, limit);
+    }
+    async updatePayment(id, updates) {
+        const payment = this.payments.get(id);
+        if (!payment)
+            return null;
+        const updated = { ...payment, ...updates };
+        this.payments.set(id, updated);
+        return updated;
+    }
+    async getUserPaymentForVideo(userId, videoId) {
+        for (const payment of this.payments.values()) {
+            if (payment.userId === userId &&
+                payment.videoId === videoId &&
+                payment.status === 'verified') {
+                return payment;
+            }
+        }
+        return null;
+    }
+    // Video Access
+    async grantVideoAccess(access) {
+        const key = `${access.userId}_${access.videoId}`;
+        this.videoAccess.set(key, access);
+        return access;
+    }
+    async hasVideoAccess(userId, videoId) {
+        const key = `${userId}_${videoId}`;
+        const access = this.videoAccess.get(key);
+        if (!access)
+            return false;
+        // Check if access has expired
+        if (access.expiresAt && access.expiresAt < new Date()) {
+            this.videoAccess.delete(key);
+            return false;
+        }
+        return true;
+    }
+    async getVideoAccess(userId, videoId) {
+        const key = `${userId}_${videoId}`;
+        return this.videoAccess.get(key) || null;
+    }
+    async getUserVideoAccess(userId) {
+        return Array.from(this.videoAccess.values()).filter((access) => access.userId === userId && access.expiresAt > new Date());
+    }
+    // Initialize with sample data
+    async initializeSampleData() {
+        // Sample creator user
+        const creator1 = await this.createUser({
+            walletAddress: 'CreatorWalletAddress1234567890123456789',
+            username: 'TechCreator',
+            email: 'creator@example.com',
+            isCreator: true,
+        });
+        // Sample viewer user
+        const viewer1 = await this.createUser({
+            walletAddress: 'ViewerWalletAddress1234567890123456789',
+            username: 'VideoFan',
+            email: 'viewer@example.com',
+            isCreator: false,
+        });
+        // Sample videos
+        const video1 = {
+            id: 'video_1',
+            creatorId: creator1.id,
+            creatorWallet: creator1.walletAddress,
+            title: 'Introduction to Solana Development',
+            description: 'Learn the basics of building on Solana blockchain. Perfect for beginners!',
+            category: 'Education',
+            priceUsdc: 2.99,
+            thumbnailUrl: 'https://picsum.photos/seed/video1/640/360',
+            videoUrl: '/api/videos/video_1/stream',
+            duration: 1245, // seconds
+            views: 127,
+            earnings: 0,
+            archived: false,
+            createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
+            updatedAt: new Date(),
+        };
+        await this.createVideo(video1);
+        const video2 = {
+            id: 'video_2',
+            creatorId: creator1.id,
+            creatorWallet: creator1.walletAddress,
+            title: 'Advanced Web3 Patterns',
+            description: 'Deep dive into Web3 development patterns and best practices.',
+            category: 'Technology',
+            priceUsdc: 4.99,
+            thumbnailUrl: 'https://picsum.photos/seed/video2/640/360',
+            videoUrl: '/api/videos/video_2/stream',
+            duration: 2156,
+            views: 89,
+            earnings: 0,
+            archived: false,
+            createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
+            updatedAt: new Date(),
+        };
+        await this.createVideo(video2);
+        const video3 = {
+            id: 'video_3',
+            creatorId: creator1.id,
+            creatorWallet: creator1.walletAddress,
+            title: 'Building DApps on Solana',
+            description: 'Complete guide to building decentralized applications on Solana.',
+            category: 'Technology',
+            priceUsdc: 6.99,
+            thumbnailUrl: 'https://picsum.photos/seed/video3/640/360',
+            videoUrl: '/api/videos/video_3/stream',
+            duration: 3421,
+            views: 234,
+            earnings: 0,
+            archived: false,
+            createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
+            updatedAt: new Date(),
+        };
+        await this.createVideo(video3);
+        console.log('Sample data initialized:');
+        console.log(`- ${this.users.size} users`);
+        console.log(`- ${this.videos.size} videos`);
+    }
+}
+exports.db = new Database();

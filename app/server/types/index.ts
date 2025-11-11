@@ -1,0 +1,75 @@
+import { Request } from 'express';
+
+export interface User {
+  id: string;
+  walletAddress: string;
+  username?: string;
+  email?: string;
+  profilePictureUrl?: string;
+  bio?: string | null;
+  isCreator: boolean;
+  createdAt: Date;
+}
+
+export interface Video {
+  id: string;
+  creatorId: string;
+  creatorWallet: string;
+  title: string;
+  description: string;
+  category: string;
+  priceUsdc: number;
+  thumbnailUrl: string;
+  videoUrl: string;
+  videoPath?: string; // Arweave transaction ID
+  duration: number;
+  views: number;
+  earnings: number;
+  archived: boolean; // Hidden from public, but accessible to purchasers
+  commentsEnabled?: boolean;
+  commentPrice?: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Payment {
+  id: string;
+  videoId: string;
+  userId: string;
+  userWallet: string;
+  creatorWallet: string;
+  amount: number;
+  creatorAmount: number;
+  platformAmount: number;
+  transactionSignature: string;
+  status: 'pending' | 'verified' | 'failed';
+  verifiedAt?: Date;
+  createdAt: Date;
+}
+
+export interface X402Challenge {
+  videoId: string;
+  priceUsdc: number;
+  creatorWallet: string;
+  platformWallet: string;
+  timestamp: number;
+  nonce: string;
+}
+
+export interface X402PaymentProof {
+  videoId: string;
+  transactionSignature: string;
+  userWallet: string;
+  timestamp: number;
+}
+
+export interface AuthRequest extends Request {
+  user?: User;
+}
+
+export interface VideoAccess {
+  userId: string;
+  videoId: string;
+  expiresAt: Date;
+  paymentId: string;
+}
