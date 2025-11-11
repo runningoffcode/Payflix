@@ -1,71 +1,53 @@
 # MCP Agent Examples
 
-## 1. Daydreams Context (TypeScript)
+## 1. TypeScript Helper (fetch + JSON-RPC)
 ```ts
-import { context, createDreams } from "@daydreamsai/core";
-import { mcpCall } from "./mcpClient"; // thin wrapper around fetch
+import fetch from "node-fetch";
 
-const payflixContext = context({
-  type: "payflix",
-  create: () => ({ lastStats: null }),
-  actions: {
-    getCreatorStats: async ({ wallet }) => {
-      const res = await mcpCall("payflix.getCreatorStats", { wallet });
-      return res.result;
-    },
-    listCreatorVideos: async ({ wallet }) => {
-      const res = await mcpCall("payflix.listCreatorVideos", { wallet });
-      return res.result;
-    },
-    getSessionBalance: async ({ userWallet }) => {
-      const res = await mcpCall("payflix.getSessionBalance", { userWallet });
-      return res.result;
-    },
-    getRecentPayouts: async ({ wallet }) => {
-      const res = await mcpCall("payflix.getRecentPayouts", { wallet });
-      return res.result;
-    },
-    unlockVideo: async ({ videoId, userWallet }) => {
-      const res = await mcpCall("payflix.unlockVideo", { videoId, userWallet });
-      return res.result;
-    },
-  },
-  use: () => [
-    { context: billingContext },
-    { context: sessionContext },
-  ],
-});
+const MCP_URL = "https://staging.payflix.fun/api/mcp";
+const MCP_KEY = process.env.MCP_API_KEY!;
 
-export const agent = createDreams({
-  model: openai("gpt-4o"),
-  contexts: [payflixContext],
-});
+async function mcpCall(method: string, params: Record<string, unknown>) {
+  const res = await fetch(MCP_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-MCP-API-KEY": MCP_KEY,
+    },
+    body: JSON.stringify({ method, params }),
+  });
+
+  const body = await res.json();
+  if (!res.ok || body.error) {
+    throw new Error(body.error?.message || body.message || "MCP error");
+  }
+  return body.result;
+}
+
+export async function getCreatorStats(wallet: string) {
+  return mcpCall("payflix.getCreatorStats", { wallet });
+}
+
+export async function listVideos(wallet: string) {
+  return mcpCall("payflix.listCreatorVideos", { wallet });
+}
+
+export async function unlockVideo(videoId: string, userWallet: string) {
+  return mcpCall("payflix.unlockVideo", { videoId, userWallet });
+}
 ```
 
 ## 2. Plain Node Script
 ```js
-import fetch from "node-fetch";
-
-async function call(method, params) {
-  const res = await fetch("https://staging.payflix.fun/api/mcp", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-MCP-API-KEY": process.env.MCP_API_KEY,
-    },
-    body: JSON.stringify({ method, params }),
-  });
-  const body = await res.json();
-  if (!res.ok) throw new Error(body.message || "MCP error");
-  return body.result;
-}
+import "dotenv/config";
+import { getCreatorStats, unlockVideo } from "./mcpClient.js";
 
 (async () => {
-  const stats = await call("payflix.getCreatorStats", { wallet: "SvsnAvyo..." });
+  const stats = await getCreatorStats("SvsnAvyo...");
   console.log(stats.highlights);
 
-  const balance = await call("payflix.getSessionBalance", { userWallet: "Wallet..." });
-  console.log(balance);
+  const unlock = await unlockVideo("video-id", "wallet-address");
+  console.log(unlock.status);
 })();
 ```
 

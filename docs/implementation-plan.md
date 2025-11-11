@@ -1,4 +1,4 @@
-# Implementation Plan (PayFlix × Daydreams)
+# Implementation Plan (PayFlix MCP)
 
 ## Workstreams
 
@@ -8,19 +8,19 @@
 
 2. **Facilitator Credential Strategy** *(In Progress)*
    - Status: Proxy endpoint + spend cap env vars live
-   - Next: add persistence for `daydreamsSpendTotal` if we need cap across restarts
+   - Next: add persistence for `partnerSpendTotal` if we need cap across restarts
 
-3. **Daydreams Context Design** *(Completed sample)*
-   - Sample context + Node script in `docs/mcp-agent-examples.md`
+3. **Agent Context Design** *(Completed sample)*
+   - Sample Node/TypeScript scripts in `docs/mcp-agent-examples.md`
    - Next: expand with paid comment example
 
 4. **Telemetry & Monitoring** *(Ongoing)*
-   - Status: Requests tagged with `X-Daydreams-Key` header
+   - Status: Requests tagged with `X-Partner-Key` header
    - Next: dashboard/alert wiring once production traffic starts
 
 5. **Testing & Rollout** *(Ongoing)*
    - Status: Playbook updated with MCP/proxy scenarios
-   - Next: Hackathon dry run + staging demo with Daydreams team
+   - Next: Hackathon dry run + staging demo with partner teams
 
 ## Milestones
 
@@ -31,6 +31,6 @@
 | Production | Multi-facilitator readiness, On-call runbook | Week 3 |
 
 ## Success Criteria
-- Daydreams agent can fetch stats & unlock videos without manual steps
-- Every payment from Daydreams sources is tagged and visible in dashboards
+- Partner agent can fetch stats & unlock videos without manual steps
+- Every payment from partner sources is tagged and visible in dashboards
 - Docs cover setup, testing, and rollback paths for future engineers

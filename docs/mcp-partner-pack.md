@@ -11,7 +11,7 @@ Welcome! This pack consolidates everything partners need to integrate with PayFl
 Send an email to engineering@payflix.fun (or your event contact) with:
 1. Team / project name
 2. Contact email + Discord/Twitter handle
-3. Intended use case (e.g., “Daydreams agent that summarizes creators”)
+3. Intended use case (e.g., “MCP agent that summarizes creator stats”)
 4. Estimated request volume
 
 We’ll reply with:

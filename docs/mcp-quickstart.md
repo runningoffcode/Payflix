@@ -1,6 +1,6 @@
 # PayFlix MCP Quickstart
 
-PayFlix exposes a Model Context Protocol (MCP) endpoint so agents (Daydreams, hackathon projects, or any MCP client) can fetch creator stats or trigger seamless unlocks.
+PayFlix exposes a Model Context Protocol (MCP) endpoint so agents (hackathon projects, partner automations, or any MCP client) can fetch creator stats or trigger seamless unlocks.
 
 ## 1. Request an API Key
 Email engineering@payflix.fun (or your partner contact) to receive an `MCP_API_KEY`.

@@ -1,21 +1,24 @@
-# PayFlix × Daydreams Docs
+# PayFlix Documentation Hub
 
-This folder houses all references for the MCP + X‑402 integration work.
+This folder contains everything needed to understand, run, and extend PayFlix. Use it as the source of truth for MCP tooling, infra setup, and partner onboarding.
 
 | File | Purpose |
 | --- | --- |
 | overview.md | High-level architecture & goals |
+| overview/platform.md | Canonical "Start Here" narrative + appendices |
 | implementation-plan.md | Workstreams, owners, milestones |
 | mcp-tooling.md | Spec for the PayFlix MCP server |
-| daydreams-agent-contexts.md | How to compose Daydreams contexts for PayFlix |
-| facilitator-integration.md | Credential strategy / monitoring for x402 |
-| testing-playbook.md | Automated + manual QA steps |
-| mcp-quickstart.md | Rapid intro for partners/hackathon teams |
-| mcp-agent-examples.md | Sample Daydreams + Node scripts |
+| mcp-agent-examples.md | Sample Node/TypeScript clients hitting MCP |
 | mcp-partner-pack.md | Bundle to send partners (summary + key request steps) |
-| monitoring-guide.md | How to watch MCP/proxy logs and metrics |
+| mcp-quickstart.md | Rapid intro for partners/hackathon teams |
+| facilitator-integration.md | Credential strategy / monitoring for x402 |
 | facilitator-proxy.md | Proxy runbook (keys, spend caps, rate limits) |
 | integration-faq.md | High-level answers for founders/partners |
-| mcp-roadmap.md | Upcoming command ideas + prioritization |
+| monitoring-guide.md | How to watch MCP/proxy logs and metrics |
+| testing-playbook.md | Automated + manual QA steps |
+| public-readme-draft.md | Alternate README copy blocks |
+| public-repo-plan.md | Checklist for keeping the public repo aligned |
 
-Start with `overview.md`, then read the spec(s) relevant to your task.
+Infra-specific guides live under `docs/infra/` (uploads, wallets, UI, auth, Supabase). Briefings for pitches live under `docs/briefings/`.
+
+Start with `overview/platform.md`, then read the specs relevant to your task.

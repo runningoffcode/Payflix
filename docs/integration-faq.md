@@ -1,7 +1,7 @@
 # Integration FAQ
 
 **What is MCP and why does PayFlix expose it?**  
-Model Context Protocol lets AI agents call external services uniformly. By exposing PayFlix via MCP, partners like Daydreams can fetch creator stats or unlock content without custom SDKs.
+Model Context Protocol lets AI agents call external services uniformly. By exposing PayFlix via MCP, partners and agentic workflows can fetch creator stats or unlock content without custom SDKs.
 
 **How do creators benefit?**  
 Every agent-triggered unlock still routes through our session keys, so creators see instant USDC payouts and Digital ID receipts—same as the main UI.

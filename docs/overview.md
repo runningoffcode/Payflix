@@ -1,4 +1,4 @@
-# PayFlix × Daydreams Overview
+# PayFlix MCP Partner Overview
 
 ## Current PayFlix Stack
 - **Session keys (X-402)** for frictionless deposits / unlocks
@@ -6,20 +6,19 @@
 - **Supabase + Redis** for analytics, balances, cache busting
 - **Cloudflare R2 pipeline** for uploads and streaming
 
-## Daydreams Capabilities
-- `@daydreamsai/core` contexts with composable memory/state
-- Built-in **MCP client** for connecting to external tools
-- Example **x402 nanoservice** showing automated micropayments
-- Public repo: https://github.com/daydreamsai/daydreams (examples: mcp integration, x402 nanoservice)
+## Partner Capabilities
+- Call PayFlix MCP commands to fetch creator stats, list videos, or request unlocks
+- Stream payment + telemetry data back into dashboards or mission consoles
+- Use the facilitator proxy to run seamless X402 payments without exposing private keys
 
 ## Joint Objective
-Allow Daydreams agents to:
-1. Call PayFlix endpoints via MCP server
-2. Settle x402 micropayments through our facilitator
+Allow MCP partners to:
+1. Call PayFlix endpoints via the MCP server
+2. Settle X402 micropayments through our facilitator
 3. Surface results (creator stats, unlock confirmations) instantly
 
 ## High-Level Flow
 1. Agent invokes PayFlix MCP tool → fetch stats or request unlock
-2. If payment required, x402 nanoservice handles session settlement
+2. If payment required, X402 facilitator settles the session
 3. PayFlix invalidates caches → Digital ID shows “Verified X seconds ago”
 4. Result returned to user or recorded for automations
