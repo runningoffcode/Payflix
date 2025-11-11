@@ -1,14 +1,17 @@
 # Dependencies
 node_modules/
+app/node_modules/
 /.pnp
 .pnp.js
 
 # Testing
 /coverage
+app/coverage/
 
 # Production
 /dist
 /build
+app/dist/
 
 # Environment
 .env
@@ -16,6 +19,8 @@ node_modules/
 .env.development.local
 .env.test.local
 .env.production.local
+app/.env
+app/.env.local
 
 # Logs
 npm-debug.log*
@@ -23,10 +28,15 @@ yarn-debug.log*
 yarn-error.log*
 logs/
 *.log
+app/npm-debug.log*
+app/yarn-debug.log*
+app/yarn-error.log*
 
 # Storage
 storage/
 uploads/
+app/uploads/
+app/storage/
 
 # IDE
 .vscode/
@@ -38,9 +48,12 @@ uploads/
 # OS
 .DS_Store
 Thumbs.db
+app/.DS_Store
 
 # TypeScript
 *.tsbuildinfo
+app/*.tsbuildinfo
 
 # Arweave wallet
 arweave-wallet.json
+app/arweave-wallet.json

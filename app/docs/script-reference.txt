@@ -1,0 +1,103 @@
+## MIGRATION_INSTRUCTIONS.md
+## add-archived-column.sql
+ARCHIVE_FEATURE.md:106:- [scripts/add-archived-column.sql](scripts/add-archived-column.sql) - SQL migration
+## airdrop-devnet-tokens.ts
+## airdrop-sol-wallet2.ts
+## airdrop-usdc.ts
+## apply-streaming-session-migration.ts
+docs/infra/supabase.md:420:npx ts-node scripts/apply-streaming-session-migration.ts
+## backfill-analytics.ts
+package.json:16:    "backfill:analytics": "ts-node -r dotenv/config scripts/backfill-analytics.ts"
+## backfill-video-access.ts
+## bypass-rls-update.ts
+## check-delegate-approval.ts
+## check-env.js
+## check-facilitator-balance.ts
+## check-new-session-delegate.ts
+## check-payments.ts
+## check-policies.ts
+## check-purchased-videos.ts
+## check-r2-videos.ts
+## check-user-wallet.ts
+## check-video-file.ts
+scripts/check-video-file.ts:3: * Usage: npx ts-node scripts/check-video-file.ts <video-id>
+scripts/check-video-file.ts:151:  console.error('Usage: npx ts-node scripts/check-video-file.ts <video-id>');
+scripts/check-video-file.ts:152:  console.error('Example: npx ts-node scripts/check-video-file.ts video_1762030786954_f8f5r');
+## check-wallet2-balance.ts
+## check-wallet2-delegate.ts
+## cleanup-old-data.ts
+## cleanup-uuid-users.sql
+## create-test-usdc.ts
+scripts/mint-test-usdc.ts:33:      throw new Error('USDC_MINT_ADDRESS not found in .env. Run create-test-usdc.ts first!');
+## debug-delete.ts
+## decode-env-key.ts
+## decode-line73.ts
+## delete-invalid-session.ts
+## delete-old-users.ts
+## delete-video-debug.ts
+scripts/delete-video-debug.ts:3: * Run with: npx ts-node scripts/delete-video-debug.ts <video_id>
+scripts/delete-video-debug.ts:113:  console.error('   Usage: npx ts-node scripts/delete-video-debug.ts <video_id>');
+## delete-video.ts
+scripts/delete-video.ts:3: * Run with: npx ts-node scripts/delete-video.ts <video_id>
+scripts/delete-video.ts:76:  console.error('   Usage: npx ts-node scripts/delete-video.ts <video_id>');
+## delete-wallet2-session.ts
+## delete-with-cascade.ts
+## diagnose-payment-issue.ts
+scripts/diagnose-payment-issue.ts:3: * Run with: npx ts-node scripts/diagnose-payment-issue.ts <USER_WALLET_ADDRESS>
+scripts/diagnose-payment-issue.ts:13:  console.error('❌ Usage: npx ts-node scripts/diagnose-payment-issue.ts <USER_WALLET_ADDRESS>');
+## diagnose-session.ts
+scripts/diagnose-session.ts:4: * Usage: npx ts-node scripts/diagnose-session.ts <wallet-address>
+scripts/diagnose-session.ts:117:  console.error('Usage: npx ts-node scripts/diagnose-session.ts <wallet-address>');
+## direct-env-check.js
+## fix-creator-id-type.sql
+scripts/MIGRATION_INSTRUCTIONS.md:19:- Open the file: `scripts/fix-creator-id-type.sql`
+## fix-session.ts
+scripts/fix-session.ts:4: * Usage: npx ts-node scripts/fix-session.ts <wallet-address>
+scripts/fix-session.ts:116:  console.error('Usage: npx ts-node scripts/fix-session.ts <wallet-address>');
+## fix-wallet2-session.ts
+## force-delete-video.ts
+## fund-facilitator.ts
+## generate-arweave-wallet.ts
+scripts/generate-arweave-wallet.ts:4: * Usage: npx ts-node scripts/generate-arweave-wallet.ts
+## generate-facilitator-wallet.ts
+## list-all-videos.ts
+## list-videos.ts
+docs/infra/wallets.md:84:npx ts-node scripts/list-videos.ts
+docs/infra/wallets.md:87:npx ts-node scripts/list-videos.ts <wallet-address>
+docs/infra/wallets.md:101:npx ts-node scripts/list-videos.ts
+docs/infra/wallets.md:133:npx ts-node scripts/list-videos.ts J3WmMHUiMx...
+scripts/list-videos.ts:6: * npx ts-node scripts/list-videos.ts [wallet-address]
+## migrate-add-archived.ts
+ARCHIVE_FEATURE.md:85:npx ts-node scripts/migrate-add-archived.ts
+ARCHIVE_FEATURE.md:107:- [scripts/migrate-add-archived.ts](scripts/migrate-add-archived.ts) - TypeScript migration runner
+scripts/migrate-add-archived.ts:3: * Run this with: npx ts-node scripts/migrate-add-archived.ts
+## migrate-add-comments.ts
+scripts/migrate-add-comments.ts:3: * Run this with: npx ts-node scripts/migrate-add-comments.ts
+## mint-test-usdc.ts
+scripts/create-test-usdc.ts:120:    console.log(`   npx ts-node scripts/mint-test-usdc.ts ${recipientWallet} <amount>\n`);
+scripts/check-wallet2-balance.ts:42:      console.log(`   npx ts-node scripts/mint-test-usdc.ts ${WALLET_2} 50`);
+scripts/check-wallet2-balance.ts:56:      console.log(`   npx ts-node scripts/mint-test-usdc.ts ${WALLET_2} 50`);
+## mirror-public-template.sh
+## reassign-video-creator.ts
+WALLET_FIX_GUIDE.md:34:npx ts-node scripts/reassign-video-creator.ts <video-id> <correct-wallet-address>
+WALLET_FIX_GUIDE.md:57:npx ts-node scripts/reassign-video-creator.ts <video-id> J3WmMHUiMx...
+WALLET_FIX_GUIDE.md:66:npx ts-node scripts/reassign-video-creator.ts video_1762039697837_5ajsoc J3WmMHUiMx...
+scripts/list-videos.ts:82:      console.log(`   npx ts-node scripts/reassign-video-creator.ts ${firstVideo.id} <correct-wallet-address>`);
+scripts/reassign-video-creator.ts:6: * npx ts-node scripts/reassign-video-creator.ts <video-id> <correct-wallet-address>
+scripts/reassign-video-creator.ts:100:  console.error('\n❌ Usage: npx ts-node scripts/reassign-video-creator.ts <video-id> <correct-wallet-address>');
+scripts/reassign-video-creator.ts:102:  console.error('  npx ts-node scripts/reassign-video-creator.ts video_1762039697837_5ajsoc J3WmMHUiMx...');
+## run-migration.ts
+docs/archive/legacy-guides/MIGRATION_GUIDE.md:69:   npx ts-node scripts/run-migration.ts
+## seed-videos.ts
+package.json:15:    "seed": "ts-node scripts/seed-videos.ts",
+## set-test-creator-wallet.ts
+## set-valid-creator-wallets.ts
+## test-delete.ts
+## test-query.ts
+## test-seamless-payment.ts
+## update-wallets-sql.ts
+## upgrade-user-to-creator.ts
+## verify-key.ts
+## verify-new-key.js
+## verify-server-key.ts
+## verify-service-role.ts
