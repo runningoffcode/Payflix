@@ -21,7 +21,7 @@ Need MCP access? → [docs/mcp-partner-pack.md](docs/mcp-partner-pack.md)
 
 ### 🎥 Mission Console Demo
 
-[▶️ Watch the PayFlix mission-console walkthrough](docs/assets/payflix-demo.mp4)
+[▶️ Watch the PayFlix mission-console walkthrough](https://runningoffcode.github.io/Payflix/demo.html)
 
 ---
 
