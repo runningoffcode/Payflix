@@ -3,7 +3,6 @@
 [![Solana](https://img.shields.io/badge/solana-x402-purple)](https://solana.com/developers/guides/getstarted/build-a-x402-facilitator)
 [![MCP](https://img.shields.io/badge/model_context_protocol-ready-blue)](docs/mcp-tooling.md)
 [![Dreams Agents](https://img.shields.io/badge/dreams-agents-green)](docs/daydreams-agent-contexts.md)
-[![Arweave](https://img.shields.io/badge/storage-arweave-orange)](docs/infra/uploads.md)
 
 PayFlix is a Solana-powered video marketplace where **MCP agents**, **Dreams orchestrations**, and **X402 session keys** deliver instant, verified streaming commerce. Viewers unlock premium content with USDC, creators see 97.65 % payouts in seconds, and partners plug in through the Model Context Protocol.
 
@@ -44,7 +43,7 @@ Need MCP access? → [docs/mcp-partner-pack.md](docs/mcp-partner-pack.md)
 - **Dreams integrations** – deterministic DAG hashing powers partner agents; see `docs/daydreams-agent-contexts.md` and `docs/overview/platform.md#appendix-i`.
 - **X402 session experience** – Appendix D/E in `docs/infra/auth.md` cover the modal, facilitator, and Corbits integration for 97.65 % payouts.
 - **PayFlix UI** – mission-console overlays, parallax panes, status timelines, and gradient CTAs described in [`docs/infra/ui.md`](docs/infra/ui.md).
-- **Uploads + Arweave** – full storage playbook (Digital ID, Supabase buckets, Arweave wallets) lives in [`docs/infra/uploads.md`](docs/infra/uploads.md).
+- **Uploads** – full storage playbook (Digital ID and Supabase buckets) lives in [`docs/infra/uploads.md`](docs/infra/uploads.md).
 
 ---
 
@@ -58,13 +57,12 @@ Daydreams Agents ──────┼────▶ PayFlix MCP Server (Expres
                        │                    │ X402 Session Service
                        │                    ▼
                     Supabase (DB/Auth/Storage) ─┬─ Dreams/DAG pipelines
-                                                └─ Arweave permanent storage
 ```
 
 - **Frontend** (`src/`): Next/React mission console, MCP client hooks, Solana wallet adapters.
 - **Backend** (`server/`): Express routes, MCP handlers, session-payment service, Dreams-friendly telemetry.
 - **Supabase**: schema + RLS in [`docs/infra/supabase.md`](docs/infra/supabase.md); active SQL scripts in `supabase/sql/`.
-- **Arweave / Storage**: setup + appendices in [`docs/infra/uploads.md`](docs/infra/uploads.md).
+- **Storage**: setup + appendices in [`docs/infra/uploads.md`](docs/infra/uploads.md).
 - **MCP**: command catalog + partner packs (`docs/mcp-*`).
 
 ---
